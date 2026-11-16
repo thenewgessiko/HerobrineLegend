@@ -1,0 +1,17 @@
+name: HerobrineLegend
+version: 0.3.1
+main: it.gesy.herobrine.HerobrineLegendPlugin
+api-version: '26.3'
+author: Gesy
+website: https://www.spigotmc.org/
+description: An atmospheric Herobrine encounter plugin.
+depend: [packetevents]
+commands:
+  herobrinelegend:
+    description: HerobrineLegend administration command
+    usage: /herobrinelegend status|reload
+    permission: herobrinelegend.admin
+permissions:
+  herobrinelegend.admin:
+    description: Allows administration of HerobrineLegend
+    default: op

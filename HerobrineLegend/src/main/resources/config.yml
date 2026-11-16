@@ -1,0 +1,38 @@
+# HerobrineLegend 0.3.1
+# Danno espresso in punti vita: 4.0 = 2 cuori completi.
+herobrine:
+  combat:
+    # Probabilità che un'apparizione casuale diventi un attacco.
+    attack-chance-percent: 25.0
+    damage: 4.0
+    attack-cooldown-seconds: 1.0
+    chase-speed: 0.28
+
+  stalking:
+    enabled: true
+    min-distance: 10.0
+    max-distance: 30.0
+    check-interval-ticks: 40
+    appearance-chance-percent: 25.0
+    vanish-when-looked-at: true
+
+  appearance:
+    # Il modello usato è un player NPC PacketEvents, non uno zombie.
+    normal-player-arms: true
+    skin:
+      texture-value: 'ewogICJ0aW1lc3RhbXAiIDogMTczODEwMDAwNzExMCwKICAicHJvZmlsZUlkIiA6ICIxNzM1MGE5OWQ3MzQ0NDBjYTY0YzJjMDU3YTNjMWM4ZSIsCiAgInByb2ZpbGVOYW1lIiA6ICJHaWxkZWRoZXJvNTY5MSIsCiAgInNpZ25hdHVyZVJlcXVpcmVkIiA6IHRydWUsCiAgInRleHR1cmVzIiA6IHsKICAgICJTS0lOIiA6IHsKICAgICAgInVybCIgOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS80MTczN2FhZTNhMmNiNDFkMzI4ZTdhYzliNjFkZjFhYzg0YWQ1M2I3NDBjZjQ4NTBjOGNjNGY0NGY0MGJiOGYiCiAgICB9CiAgfQp9'
+      signature: 'ROX1J4x56zzVAd1M34lRtxgmldowgIVCmcIARhaJa2+F6RSeEj5ujVu2aFmXjVRDaslTz5N5d+0xQxIMnAabwefwFxLyp6FBl/UrXg4yZczfdaZhqHeHXzgoKFhuK9ebpuABOehyRb0eRpO7YLoaC9QaS+EpzUA/kRvDPf/mTdJmQgoKIk0fDCCUNwlqpq0MP/59nF4qPPbQ0EMjzjXLNALXPSzJQRMKKMS0+oQwQE0vPlCbqj2vaZGtiM6GnAHKqQU5ZvloR7CnV0umcLuLuRYmE/agWLiK5LCQVTHC3XmG3FE+GRLttyIc0CqHeGjcbVkMZnu1mN71ZIeqneURpEIfltiYNZVBB8gaJUwu7jLVc9TvXCdsI1aHbW6NyDXl2qOckOogIi/29cf3+eHA/LZIcJM883ydGskcQVI1SEZtzjZ2ZI9vKHZf+vNIqWSaYk/gmU+xMXyWPMMKJRQgWmQ0Ug+NWLKJeurggR/H1d86ksYuSn3wk9GHIMRj9c3p5CQSk7J/D5UmbEB4wvuJZNKap2TC0yhdct6qgj9omAV5leQQ1BuyZKo7bPMaiM2pM9rQnZyScLmMqHjhtOvkpMoJ7Z+oJYhmfQUa4wt+e+g+Z73WTkEZDCJLXXGTP2Bvaol5GGi5yGr7uE6ONAbsJXKVmEM8urAPXJm5iM0bSj8='
+
+ritual:
+  enabled: true
+  activation-item: CRYING_OBSIDIAN
+  deactivation-item: DIAMOND
+  center-block: MOSSY_COBBLESTONE
+  ring-block: GOLD_BLOCK
+  side-redstone: REDSTONE_WIRE
+  top-block: NETHERRACK
+
+world:
+  change-time: false
+  change-weather: false
+  generate-structures: false
