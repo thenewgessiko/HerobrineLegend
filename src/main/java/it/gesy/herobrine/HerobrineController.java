@@ -234,7 +234,7 @@ public final class HerobrineController implements Listener {
     private boolean isTargetLookingAtHerobrine() {
         Vector toNpc = npcLocation.toVector().subtract(target.getEyeLocation().toVector()).normalize();
         Vector look = target.getEyeLocation().getDirection().normalize();
-        return look.dot(toNpc) > 0.94 && target.hasLineOfSight(npcLocation.clone().add(0, 1.0, 0));
+        return look.dot(toNpc) > 0.94 && target.getWorld().rayTraceBlocks(target.getEyeLocation(), toNpc, target.getEyeLocation().distance(npcLocation.clone().add(0, 1.0, 0))) == null;
     }
 
     private void chaseTarget() {

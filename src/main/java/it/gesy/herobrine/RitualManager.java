@@ -46,7 +46,7 @@ public final class RitualManager implements Listener {
                 if (below.getType() != material("ritual.top-block", Material.NETHERRACK)) return;
                 Block center = below.getRelative(0, -1, 0);
                 if (!isRitualComplete(center)) return;
-                if (type == activation) {
+                if (type == material("ritual.activation-item", Material.CRYING_OBSIDIAN)) {
                     if (state.isActive()) {
                         player.sendMessage(ChatColor.GRAY + "Il rituale è già attivo.");
                         return;
