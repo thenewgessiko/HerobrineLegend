@@ -57,6 +57,7 @@ public final class HerobrineController implements Listener {
     private long encounterClockTicks;
     private long nextStalkingAttemptAt;
     private boolean nextStalkingVanishLightning;
+    private boolean eyeTriggeredVanish;
     private int attackCooldownTicks;
     private boolean forcedAttack;
     private int stalkingContactCooldown;
@@ -292,6 +293,7 @@ public final class HerobrineController implements Listener {
                     && npcLocation.distanceSquared(target.getLocation()) > 4.0
                     && isTargetLookingAtHerobrine()) {
                 int fear = horrorManager == null ? 0 : horrorManager.getFear(target);
+                eyeTriggeredVanish = true;
                 if (fear >= plugin.getConfig().getInt("herobrine.stalking.eye-jumpscare.min-fear", 65)
                         && fear <= plugin.getConfig().getInt("herobrine.stalking.eye-jumpscare.max-fear", 99)
                         && plugin.getConfig().getBoolean("herobrine.stalking.eye-jumpscare.enabled", true)) {
@@ -350,7 +352,6 @@ public final class HerobrineController implements Listener {
     }
 
     private void tryStartEncounter() {
-        if (random.nextDouble() * 100.0 > plugin.getConfig().getDouble("herobrine.stalking.appearance-chance-percent", 25.0)) return;
         Location anchor = state.getAnchor();
         if (anchor == null || anchor.getWorld() == null) return;
 
@@ -735,7 +736,9 @@ public final class HerobrineController implements Listener {
         Location at = npcLocation.clone();
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
-            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.60f);
+            if (eyeTriggeredVanish) {
+                viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.60f);
+            }
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
         spawnOriginalVanishParticles(world, at);
@@ -791,10 +794,9 @@ public final class HerobrineController implements Listener {
                 completedHuntingAppearances = 0;
             }
         }
-        // A full one-second pause followed by fifteen seconds of stalking cooldown.
-        // Reset only for stalking; hunting retains its fixed six slots in 90 seconds.
+        // Fifteen seconds counted from the stalking disappearance, just like hunting.
         if (npc != null && (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE)) {
-            nextStalkingAttemptAt = encounterClockTicks + 20L
+            nextStalkingAttemptAt = encounterClockTicks
                     + Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
         }
         if (npc != null && effects) playDespawnEffects();
@@ -809,6 +811,7 @@ public final class HerobrineController implements Listener {
         modeTicks = 0;
         forcedAttack = false;
         jumpscareRushTicks = 0;
+        eyeTriggeredVanish = false;
     }
 
     private int randomBetween(int min, int max) {

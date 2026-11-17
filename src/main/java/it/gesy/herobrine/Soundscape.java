@@ -26,7 +26,8 @@ public final class Soundscape {
                 String[] variants = switch (key) {
                     case "phantom" -> new String[]{"ENTITY_PHANTOM_AMBIENT", "ENTITY_PHANTOM_FLAP", "ENTITY_PHANTOM_SWOOP"};
                     case "ghast" -> new String[]{"ENTITY_GHAST_AMBIENT"};
-                    case "enderman-stare" -> new String[]{"ENTITY_ENDERMAN_STARE", "ENTITY_ENDERMAN_AMBIENT", "ENTITY_ENDERMAN_SCREAM"};
+                    // ENTITY_ENDERMAN_STARE is reserved for eye-triggered NPC vanish.
+                    case "enderman-stare" -> new String[]{"ENTITY_ENDERMAN_AMBIENT", "ENTITY_ENDERMAN_SCREAM"};
                     case "heartbeat" -> new String[]{"ENTITY_WARDEN_HEARTBEAT", "ENTITY_WARDEN_AMBIENT", "ENTITY_WARDEN_NEARBY_CLOSE"};
                     case "warden" -> new String[]{"ENTITY_WARDEN_HEARTBEAT", "ENTITY_WARDEN_AMBIENT", "ENTITY_WARDEN_NEARBY_CLOSE"};
                     default -> new String[0];

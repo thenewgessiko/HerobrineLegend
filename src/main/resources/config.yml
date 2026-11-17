@@ -78,7 +78,7 @@ horror:
   fear:
     enabled: true
     max-level: 100
-    decay-per-minute: 1
+    decay-per-minute: 0
     blindness-threshold: 70
     brief-blindness: true
     triggers:
@@ -149,7 +149,7 @@ herobrine:
     max-distance: 8.0
     # 300 tick = 15 secondi; stalking waits 1 extra second after despawn.
     check-interval-ticks: 300
-    appearance-chance-percent: 25.0
+    appearance-chance-percent: 100.0
     vanish-when-looked-at: true
     duration-seconds: 15
     contact:
@@ -226,7 +226,7 @@ soundscape:
   ambient:
     interval-seconds: 15
     chance-percent: 75.0
-    events: [cave, cave, cave, enderman-stare, ghast, phantom, warden, heartbeat, footsteps]
+    events: [cave, cave, cave, ghast, phantom, warden, heartbeat, footsteps]
   events:
     spawn: {enabled: true, sound: AMBIENT_CAVE, volume: 0.65, pitch: 0.65}
     footsteps: {enabled: true, sound: BLOCK_STONE_STEP, volume: 0.7, pitch: 0.7}

@@ -67,11 +67,6 @@ public final class HorrorManager {
         ticks++;
         // Hunting ends only after the controller confirms six complete
         // disappearances. Do not time out at 90 seconds.
-        if (ticks % 60 == 0) {
-            int decay = Math.max(0, plugin.getConfig().getInt("horror.fear.decay-per-minute", 1));
-            fear.replaceAll((uuid, amount) -> huntingStarted.containsKey(uuid) ? amount : Math.max(0, amount - decay));
-            for (Map.Entry<UUID, Integer> entry : fear.entrySet()) updateHostility(entry.getKey(), entry.getValue());
-        }
         if (!state.isActive() || !plugin.getConfig().getBoolean("horror.enabled", true)) return;
         Location anchor = state.getAnchor();
         if (anchor == null || anchor.getWorld() == null) return;
@@ -127,10 +122,8 @@ public final class HorrorManager {
         UUID id = player.getUniqueId();
         if (huntingStarted.containsKey(id)) return;
         int before = fear.getOrDefault(id, 0);
-        int increment = before < 30 ? 5 : before < 65 ? 2 : 1;
-        // Preserve event counts: one event grants one scaled increment,
-        // regardless of its legacy +5 configuration.
-        int current = Math.min(max, before + (amount <= 0 ? 0 : increment));
+        // Every event/appearance adds five Fear; hunting stays locked at 100.
+        int current = Math.min(max, before + (amount <= 0 ? 0 : 5));
         fear.put(id, current);
         if (current >= max && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) huntingStarted.put(id, ticks);
         updateHostility(id, current);
