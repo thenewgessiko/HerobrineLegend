@@ -73,7 +73,7 @@ public final class RitualManager implements Listener {
                     flame.setType(Material.FIRE);
                     playRitualEffects(below.getLocation().add(0.5, 1, 0.5), true);
                     consumeOne(item);
-                    player.sendMessage(ChatColor.DARK_PURPLE + "Qualcosa ha risposto al richiamo... Herobrine è stato evocato.");
+                    broadcastRitualTitle("§4§lLe§ka§r§4§lve Th§ki§r§4§ls Wo§kr§r§4§lld§r", "§4§lHerobrine is Here§r");
                     plugin.getLogger().info("Ritual activated at " + center.getWorld().getName() + " " + center.getX() + "," + center.getY() + "," + center.getZ());
                 } else {
                     if (!state.isActive()) {
@@ -92,12 +92,19 @@ public final class RitualManager implements Listener {
                     controller.deactivateImmediately();
                     plugin.getHorrorManager().resetAllFear();
                     consumeOne(item);
-                    player.sendMessage(ChatColor.YELLOW + "La presenza è svanita.");
+                    broadcastRitualTitle("§b§lPurification§r", "");
                     plugin.getLogger().info("Herobrine deactivated by " + player.getName());
                 }
                 }, Math.max(1L, plugin.getConfig().getLong("ritual.transition-delay-ticks", 20L)));
             }
         }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    /** Global ritual titles: 10-tick fade in, 40-tick hold, 10-tick fade out. */
+    private void broadcastRitualTitle(String title, String subtitle) {
+        for (Player online : org.bukkit.Bukkit.getOnlinePlayers()) {
+            online.sendTitle(title, subtitle, 10, 40, 10);
+        }
     }
 
     /** Particle/sound choices reconstructed from the original 1.8 ritual bytecode. */

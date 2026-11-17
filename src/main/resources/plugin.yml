@@ -1,5 +1,5 @@
 name: HerobrineLegend
-version: 0.4.3-dev
+version: 0.4.4
 main: it.gesy.herobrine.HerobrineLegendPlugin
 api-version: '1.21'
 author: TheNewGessiko

@@ -39,7 +39,7 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
         herobrineController.start();
         horrorManager.start();
 
-        getLogger().info("HerobrineLegend 0.4.2 development abilitato con PacketEvents.");
+        getLogger().info("HerobrineLegend 0.4.4 FINAL abilitato con PacketEvents.");
         if (encounterState.isActive()) {
             getLogger().info("Herobrine risulta già evocato: il sistema di incontri è stato ripristinato.");
         }
