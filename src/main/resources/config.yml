@@ -138,11 +138,13 @@ herobrine:
 
   stalking:
     enabled: true
-    min-distance: 10.0
-    max-distance: 30.0
+    min-distance: 5.0
+    max-distance: 8.0
     check-interval-ticks: 40
     appearance-chance-percent: 25.0
     vanish-when-looked-at: true
+    despawn:
+      lightning-chance-percent: 25
 
   appearance:
     # Il modello usato è un player NPC PacketEvents, non uno zombie.

@@ -13,6 +13,8 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerEn
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -160,16 +162,14 @@ public final class HerobrineController implements Listener {
 
         if (mode == Mode.STALKING) {
             faceTarget();
+            emitPresenceParticles();
             if (plugin.getConfig().getBoolean("herobrine.stalking.vanish-when-looked-at", true)
                     && isTargetLookingAtHerobrine()) {
                 despawn();
                 nextAttemptTicks = 40;
                 return;
             }
-            if (modeTicks >= modeDurationTicks) {
-                despawn();
-                nextAttemptTicks = randomBetween(40, 100);
-            }
+            // Stalking ends only on player gaze, altar deactivation, or invalid target.
             return;
         }
 
@@ -180,6 +180,7 @@ public final class HerobrineController implements Listener {
                 modeDurationTicks = randomBetween(100, 160);
                 return;
             }
+            faceTarget();
             chaseTarget();
             if (modeTicks >= Math.max(1, plugin.getConfig().getInt("combat.chase.duration-seconds", 5) * 20)) {
                 despawn();
@@ -302,7 +303,8 @@ public final class HerobrineController implements Listener {
             // Client relative-move packets have limited delta range; keep each step small.
             double speed = Math.min(0.9, Math.max(0.05, plugin.getConfig().getDouble("combat.chase.speed-blocks-per-tick", 0.28)));
             Vector step = delta.normalize().multiply(Math.min(speed, distance));
-            Location next = npcLocation.clone().add(step);
+            Location next = resolveCollision(npcLocation, step);
+            if (next.distanceSquared(npcLocation) < 0.000001) return;
             next.setYaw(yawToward(next, targetLocation));
             next.setPitch(0.0f);
             moveNpcSmoothly(npcLocation, next);
@@ -310,7 +312,7 @@ public final class HerobrineController implements Listener {
             npc.setLocation(toPacketLocation(npcLocation));
         }
 
-        if (distance <= 2.0 && attackCooldownTicks-- <= 0) {
+        if (distance <= 2.0 && hasClearAttackPath() && attackCooldownTicks-- <= 0) {
             attackCooldownTicks = Math.max(1, (int) Math.round(plugin.getConfig().getInt("combat.attack.cooldown-ticks", 20)));
             swingMainArm();
             double damage = Math.max(0.0, plugin.getConfig().getDouble("combat.attack.damage", 4.0));
@@ -318,6 +320,73 @@ public final class HerobrineController implements Listener {
             Vector knockback = target.getLocation().toVector().subtract(npcLocation.toVector());
             if (knockback.lengthSquared() > 0.001) target.setVelocity(knockback.normalize().multiply(0.35).setY(0.18));
         }
+    }
+
+    /** Collision-constrained motion: no wall clipping, with small obstacle step-up and gravity. */
+    private Location resolveCollision(Location origin, Vector motion) {
+        double stepX = motion.getX();
+        double stepZ = motion.getZ();
+        Location candidate = origin.clone().add(stepX, 0, stepZ);
+        if (!hasRoom(candidate)) {
+            Location stepped = candidate.clone().add(0, 1, 0);
+            if (hasRoom(stepped) && hasSupport(stepped)) candidate = stepped;
+            else {
+                Location xOnly = origin.clone().add(stepX, 0, 0);
+                Location zOnly = origin.clone().add(0, 0, stepZ);
+                if (hasRoom(xOnly) && hasSupport(xOnly)) candidate = xOnly;
+                else if (hasRoom(zOnly) && hasSupport(zOnly)) candidate = zOnly;
+                else return origin.clone();
+            }
+        }
+        // Fall at most one block per tick while ensuring feet and head stay clear.
+        for (int i = 0; i < 2 && !hasSupport(candidate); i++) {
+            Location lower = candidate.clone().subtract(0, 1, 0);
+            if (!hasRoom(lower)) break;
+            candidate = lower;
+        }
+        return candidate;
+    }
+
+    private boolean hasRoom(Location feet) {
+        double[] offsets = {-0.29, 0.29};
+        for (double dx : offsets) for (double dz : offsets) {
+            for (double y : new double[]{0.05, 1.65}) {
+                if (!feet.clone().add(dx, y, dz).getBlock().isPassable()) return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasSupport(Location feet) {
+        return !feet.clone().subtract(0, 0.1, 0).getBlock().isPassable();
+    }
+
+    private boolean hasClearAttackPath() {
+        Location eye = npcLocation.clone().add(0, 1.6, 0);
+        Location other = target.getEyeLocation();
+        Vector ray = other.toVector().subtract(eye.toVector());
+        double length = ray.length();
+        return length < 0.01 || npcLocation.getWorld().rayTraceBlocks(eye, ray.normalize(), length) == null;
+    }
+
+    private void emitPresenceParticles() {
+        if (npcLocation == null || modeTicks % 5 != 0) return;
+        npcLocation.getWorld().spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 1, 0), 3, .25, .65, .25, .01);
+    }
+
+    private void playDespawnEffects() {
+        if (npcLocation == null || mode == Mode.NONE) return;
+        World world = npcLocation.getWorld();
+        Location at = npcLocation.clone();
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_SCREAM, 1.0f, 0.55f);
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
+        }
+        boolean lightning = mode == Mode.STALKING && random.nextDouble() * 100 <
+                plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 25);
+        if (lightning) world.strikeLightningEffect(at); // visual only: no fire
+        else world.spawnParticle(Particle.PORTAL, at.clone().add(0, 1, 0), 55, .4, .8, .4, .15);
     }
 
     /** Sends native relative movement packets so the player model animates while running. */
@@ -346,6 +415,7 @@ public final class HerobrineController implements Listener {
     }
 
     private void despawn() {
+        if (npc != null) playDespawnEffects();
         if (npc != null) npc.despawnAll();
         npc = null;
         target = null;
