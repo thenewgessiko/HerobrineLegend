@@ -50,10 +50,12 @@ public final class HorrorManager {
 
     public void onEncounter(Player player, boolean attacking) {
         if (!state.isActive() || !plugin.getConfig().getBoolean("horror.enabled", true)) return;
-        addFear(player, plugin.getConfig().getInt("horror.fear.triggers.see-herobrine", 15)
-                + (attacking ? plugin.getConfig().getInt("horror.fear.triggers.attack", 20) : 0));
-        if (plugin.getConfig().getBoolean("horror.effects.spawn-sound", true))
-            soundscape.play(player, "spawn", player.getLocation());
+        // Exactly +5 for an appearance, independent of stalking or combat.
+        addFear(player, 5);
+        if (plugin.getConfig().getBoolean("horror.effects.spawn-sound", true)
+                && soundscape.play(player, "spawn", player.getLocation()))
+            addFear(player, 5); // Every successfully played scary sound adds +5.
+
         if (plugin.getConfig().getBoolean("horror.effects.spawn-particles", true))
             player.spawnParticle(Particle.SMOKE, player.getLocation().add(0, 1, 0), 12, .6, .7, .6, .01);
     }
@@ -69,8 +71,8 @@ public final class HorrorManager {
         Location anchor = state.getAnchor();
         if (anchor == null || anchor.getWorld() == null) return;
         // Independent ambient loop: never gate sounds behind the hallucination roll.
-        int audioInterval = Math.max(1, plugin.getConfig().getInt("soundscape.ambient.interval-seconds", 6));
-        int hallucinationInterval = Math.max(1, plugin.getConfig().getInt("horror.hallucinations.interval-seconds", 10));
+        int audioInterval = Math.max(1, plugin.getConfig().getInt("soundscape.ambient.interval-seconds", 18));
+        int hallucinationInterval = Math.max(1, plugin.getConfig().getInt("horror.hallucinations.interval-seconds", 25));
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()
                     || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;

@@ -176,8 +176,16 @@ public final class HerobrineController implements Listener {
             if (npcLocation.distanceSquared(target.getLocation()) <= 2.25 && stalkingContactCooldown == 0) {
                 stalkingContactCooldown = 60;
                 target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0, false, false, true));
-                target.getWorld().strikeLightningEffect(target.getLocation());
-                target.setHealth(Math.max(0.0, target.getHealth() - 1.0)); // exactly half a heart, regardless of armor
+                Location impact = target.getLocation();
+                spawnOriginalVanishParticles(target.getWorld(), impact);
+                target.getWorld().strikeLightningEffect(impact);
+                target.getWorld().playSound(impact, Sound.ENTITY_GHAST_SCREAM, 1.1f, 0.55f);
+                Vector push = target.getLocation().toVector().subtract(npcLocation.toVector());
+                if (push.lengthSquared() < 0.001) push = target.getLocation().getDirection().multiply(-1);
+                push.setY(0);
+                if (push.lengthSquared() < 0.001) push.setX(1);
+                target.setVelocity(push.normalize().multiply(1.05).setY(0.45));
+                target.setHealth(Math.max(0.0, target.getHealth() - 1.0));
                 despawn(false);
                 nextAttemptTicks = 40;
                 return;
@@ -393,16 +401,23 @@ public final class HerobrineController implements Listener {
         Location standing = origin.clone();
         boolean grounded = hasSupport(standing);
 
-        // Start a jump when the next horizontal step is obstructed by a one-block ledge.
-        Location forward = standing.clone().add(motion.getX(), 0, motion.getZ());
+        // Predict a full block ahead, not just the current fractional movement.
+        // A packet NPC has no native step-up AI; jump early enough to clear the ledge.
+        Vector direction = motion.clone().setY(0);
         if (grounded && jumpTicksRemaining == 0
                 && plugin.getConfig().getBoolean("combat.chase.auto-jump", true)
-                && !hasRoom(forward) && hasRoom(standing.clone().add(0, 0.5, 0))
-                && hasRoom(standing.clone().add(0, 1.01, 0))
-                && hasRoom(forward.clone().add(0, 1.01, 0))
-                && hasSupport(forward.clone().add(0, 1.01, 0))) {
-            verticalVelocity = 0.43;
-            jumpTicksRemaining = 1;
+                && direction.lengthSquared() > 0.00001) {
+            direction.normalize();
+            Location probe = standing.clone().add(direction.clone().multiply(0.55));
+            Location immediate = standing.clone().add(motion.getX(), 0, motion.getZ());
+            boolean obstacle = !hasRoom(probe) || !hasRoom(immediate);
+            // Space above both feet and obstacle, plus a solid ledge to land on.
+            if (obstacle && hasRoom(standing.clone().add(0, 0.55, 0))
+                    && hasRoom(standing.clone().add(0, 1.10, 0))
+                    && hasRoom(probe.clone().add(0, 1.10, 0))) {
+                verticalVelocity = 0.52;
+                jumpTicksRemaining = 1;
+            }
         }
 
         // Gravity applies every tick, including when the NPC walks off a ledge.
@@ -455,7 +470,7 @@ public final class HerobrineController implements Listener {
     private boolean hasRoom(Location feet) {
         double[] offsets = {-0.29, 0.29};
         for (double dx : offsets) for (double dz : offsets) {
-            for (double y : new double[]{0.05, 1.65}) {
+            for (double y : new double[]{0.05, 0.65, 1.25, 1.75}) {
                 if (!feet.clone().add(dx, y, dz).getBlock().isPassable()) return false;
             }
         }
@@ -485,7 +500,7 @@ public final class HerobrineController implements Listener {
         Location at = npcLocation.clone();
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
-            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.85f);
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.55f);
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
         spawnOriginalVanishParticles(world, at);

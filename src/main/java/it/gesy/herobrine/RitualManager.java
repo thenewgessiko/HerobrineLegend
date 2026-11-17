@@ -104,7 +104,7 @@ public final class RitualManager implements Listener {
         if (world == null) return;
         if (summon) {
             world.playSound(at, Sound.ENTITY_WARDEN_HEARTBEAT, 2f, .5f);
-            world.playSound(at, Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.5f, .7f);
+            world.playSound(at, Sound.ENTITY_PHANTOM_SWOOP, 1.5f, 0.85f);
             world.playSound(at, Sound.AMBIENT_SOUL_SAND_VALLEY_MOOD, 2f, .5f);
         } else {
             world.playSound(at, Sound.BLOCK_BEACON_ACTIVATE, 2f, 1.5f);
