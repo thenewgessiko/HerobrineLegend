@@ -197,7 +197,9 @@ public final class HerobrineController implements Listener {
         List<Player> candidates = new ArrayList<>();
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.getWorld().equals(anchor.getWorld()) && !player.isDead()
-                    && player.getGameMode() != org.bukkit.GameMode.SPECTATOR) {
+                    && player.getGameMode() != org.bukkit.GameMode.SPECTATOR
+                    && horrorManager != null
+                    && horrorManager.getFear(player) >= plugin.getConfig().getInt("herobrine.stalking.min-fear-to-appear", 30)) {
                 candidates.add(player);
             }
         }
@@ -322,29 +324,39 @@ public final class HerobrineController implements Listener {
         }
     }
 
-    /** Collision-constrained motion: no wall clipping, with small obstacle step-up and gravity. */
+    /**
+     * A one-block step-up for the packet-only NPC. The client NPC has no server-side
+     * entity physics, so we explicitly check headroom and supporting blocks.
+     * This is obstacle stepping, NOT full navigation/pathfinding.
+     */
     private Location resolveCollision(Location origin, Vector motion) {
-        double stepX = motion.getX();
-        double stepZ = motion.getZ();
-        Location candidate = origin.clone().add(stepX, 0, stepZ);
-        if (!hasRoom(candidate)) {
-            Location stepped = candidate.clone().add(0, 1, 0);
-            if (hasRoom(stepped) && hasSupport(stepped)) candidate = stepped;
-            else {
-                Location xOnly = origin.clone().add(stepX, 0, 0);
-                Location zOnly = origin.clone().add(0, 0, stepZ);
-                if (hasRoom(xOnly) && hasSupport(xOnly)) candidate = xOnly;
-                else if (hasRoom(zOnly) && hasSupport(zOnly)) candidate = zOnly;
-                else return origin.clone();
+        double dx = motion.getX();
+        double dz = motion.getZ();
+        Location forward = origin.clone().add(dx, 0, dz);
+        if (hasRoom(forward) && hasSupport(forward)) return forward;
+
+        // A jump must be attempted before sliding sideways: the previous version
+        // frequently stopped at a one-block obstacle or slid along its face.
+        if (plugin.getConfig().getBoolean("combat.chase.auto-jump", true)) {
+            Location jumped = forward.clone().add(0, 1, 0);
+            Location aboveOrigin = origin.clone().add(0, 1, 0);
+            if (hasRoom(aboveOrigin) && hasRoom(jumped) && hasSupport(jumped)) {
+                return jumped;
             }
         }
-        // Fall at most one block per tick while ensuring feet and head stay clear.
-        for (int i = 0; i < 2 && !hasSupport(candidate); i++) {
-            Location lower = candidate.clone().subtract(0, 1, 0);
-            if (!hasRoom(lower)) break;
-            candidate = lower;
+
+        // Slide along a wall if possible, rather than clipping through it.
+        Location alongX = origin.clone().add(dx, 0, 0);
+        Location alongZ = origin.clone().add(0, 0, dz);
+        if (hasRoom(alongX) && hasSupport(alongX)) return alongX;
+        if (hasRoom(alongZ) && hasSupport(alongZ)) return alongZ;
+
+        // Gravity for a ledge; descend only through clear space.
+        if (hasRoom(forward)) {
+            Location down = forward.clone().subtract(0, 1, 0);
+            if (hasRoom(down) && hasSupport(down)) return down;
         }
-        return candidate;
+        return origin.clone();
     }
 
     private boolean hasRoom(Location feet) {
@@ -380,7 +392,7 @@ public final class HerobrineController implements Listener {
         Location at = npcLocation.clone();
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
-            viewer.playSound(at, Sound.ENTITY_ENDERMAN_SCREAM, 1.0f, 0.55f);
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.55f);
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
         boolean lightning = mode == Mode.STALKING && random.nextDouble() * 100 <

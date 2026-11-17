@@ -76,8 +76,11 @@ public final class HorrorManager {
             int level = fear.getOrDefault(player.getUniqueId(), 0);
             if (random.nextDouble() * 100 >= Math.min(100, chance + level * .25)) continue;
             playHallucination(player);
-            if (random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 20.0))
+            // Atmospheric audio can raise fear before the first NPC appearance.
+            if (random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 20.0)) {
                 soundscape.playRandomAmbient(player);
+                addFear(player, plugin.getConfig().getInt("fear.triggers.hear-sound", 5));
+            }
         }
     }
 
@@ -94,7 +97,7 @@ public final class HorrorManager {
         } else if (effect == 3 && plugin.getConfig().getBoolean("horror.hallucinations.distant-sounds", true)) {
             soundscape.play(player, "distant-breaking", at.clone().add(6, 0, 6));
         } else return;
-        addFear(player, plugin.getConfig().getInt("horror.fear.triggers.hallucination", 5));
+        if (effect != 2) addFear(player, plugin.getConfig().getInt("fear.triggers.hear-sound", 5));
         int level = fear.getOrDefault(player.getUniqueId(), 0);
         if (level >= plugin.getConfig().getInt("horror.fear.blindness-threshold", 70)
                 && plugin.getConfig().getBoolean("horror.fear.brief-blindness", true)

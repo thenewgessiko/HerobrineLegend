@@ -138,6 +138,8 @@ herobrine:
 
   stalking:
     enabled: true
+    # No random appearances until atmospheric sounds have built fear.
+    min-fear-to-appear: 30
     min-distance: 5.0
     max-distance: 8.0
     check-interval-ticks: 40
@@ -185,6 +187,7 @@ combat:
   chase:
     duration-seconds: 5
     speed-blocks-per-tick: 0.28
+    auto-jump: true
     start-chance-percent: 100.0
   attack:
     damage: 4.0
@@ -197,15 +200,15 @@ soundscape:
   enabled: true
   ambient:
     chance-percent: 20.0
-    events: [cave, enderman-stare, wither, ghast, phantom, warden]
+    events: [cave, enderman-stare, ghast, phantom, warden, heartbeat, footsteps]
   events:
     spawn: {enabled: true, sound: AMBIENT_CAVE, volume: 0.65, pitch: 0.65}
     footsteps: {enabled: true, sound: BLOCK_STONE_STEP, volume: 0.7, pitch: 0.7}
     heartbeat: {enabled: true, sound: ENTITY_WARDEN_HEARTBEAT, volume: 0.6, pitch: 0.8}
     distant-breaking: {enabled: true, sound: BLOCK_STONE_BREAK, volume: 0.6, pitch: 0.55}
     cave: {enabled: true, sound: AMBIENT_CAVE, volume: 0.55, pitch: 0.7}
-    enderman-stare: {enabled: true, sound: ENTITY_ENDERMAN_STARE, volume: 0.5, pitch: 0.65}
+    enderman-stare: {enabled: true, sound: ENTITY_ENDERMAN_SCREAM, volume: 0.5, pitch: 1.15}
     wither: {enabled: true, sound: ENTITY_WITHER_AMBIENT, volume: 0.4, pitch: 0.65}
-    ghast: {enabled: true, sound: ENTITY_GHAST_SCREAM, volume: 0.35, pitch: 0.6}
-    phantom: {enabled: true, sound: ENTITY_PHANTOM_AMBIENT, volume: 0.5, pitch: 0.7}
-    warden: {enabled: true, sound: ENTITY_WARDEN_AMBIENT, volume: 0.4, pitch: 0.7}
+    ghast: {enabled: true, sound: ENTITY_GHAST_SCREAM, volume: 0.35, pitch: 1.15}
+    phantom: {enabled: true, sound: ENTITY_PHANTOM_AMBIENT, volume: 0.5, pitch: 1.05}
+    warden: {enabled: true, sound: ENTITY_WARDEN_AMBIENT, volume: 0.4, pitch: 0.85}
