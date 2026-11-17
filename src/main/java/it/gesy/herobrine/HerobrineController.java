@@ -221,6 +221,19 @@ public final class HerobrineController implements Listener {
         }
         updateViewers();
         modeTicks++;
+        // Exactly one additional dark entity voice, 2 seconds after a stalking
+        // appearance. This is audio only: it must not raise Fear or reset timers.
+        // It never plays during hunting, nor if Herobrine has already vanished.
+        if (mode == Mode.STALKING && modeTicks == 40 && target != null) {
+            Sound[] voices = {
+                Sound.ENTITY_ENDERMAN_SCREAM,
+                Sound.ENTITY_WARDEN_AMBIENT,
+                Sound.ENTITY_WARDEN_NEARBY_CLOSE
+            };
+            Sound selected = voices[random.nextInt(voices.length)];
+            float pitch = 0.50f + random.nextFloat() * 0.22f;
+            target.playSound(npcLocation, selected, 0.9f, pitch);
+        }
         emitManifestationSmoke();
         if (stalkingContactCooldown > 0) stalkingContactCooldown--;
 

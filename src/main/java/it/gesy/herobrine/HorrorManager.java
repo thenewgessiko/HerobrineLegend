@@ -52,11 +52,12 @@ public final class HorrorManager {
 
     public void onEncounter(Player player, boolean attacking) {
         if (!state.isActive() || !plugin.getConfig().getBoolean("horror.enabled", true)) return;
-        // Exactly +5 for an appearance, independent of stalking or combat.
+        // One appearance = one Fear event, even if an ambient sound is played.
+        // In stalking and hunting ambient audio only accompanies an appearance.
         addFear(player, 5);
-        if (plugin.getConfig().getBoolean("horror.effects.spawn-sound", true)
-                && soundscape.play(player, "spawn", player.getLocation()))
-            addFear(player, 5); // Every successfully played scary sound adds +5.
+        if (plugin.getConfig().getBoolean("horror.effects.spawn-sound", true)) {
+            soundscape.playRandomAmbient(player);
+        }
 
         if (plugin.getConfig().getBoolean("horror.effects.spawn-particles", true))
             player.spawnParticle(Particle.SMOKE, player.getLocation().add(0, 1, 0), 12, .6, .7, .6, .01);
@@ -80,6 +81,9 @@ public final class HorrorManager {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()
                     || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
+            // Independent ambience/hallucinations only in the pre-stalking phase.
+            // No autonomous sounds or Fear increments during stalking/hunting.
+            if (getFear(player) >= 30) continue;
             if (ticks % audioInterval == 0
                     && random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 75.0)
                     && soundscape.playRandomAmbient(player)) {

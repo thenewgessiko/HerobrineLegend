@@ -238,3 +238,6 @@ soundscape:
     ghast: {enabled: true, sound: ENTITY_GHAST_AMBIENT, volume: 0.35, pitch: 0.62}
     phantom: {enabled: true, sound: ENTITY_PHANTOM_AMBIENT, volume: 0.5, pitch: 0.65}
     warden: {enabled: true, sound: ENTITY_WARDEN_AMBIENT, volume: 0.4, pitch: 0.85}
+
+# In Fear 30-100 ambient audio is played only on Herobrine appearances.
+# Every appearance is counted once for Fear (no extra Fear for its sound).
