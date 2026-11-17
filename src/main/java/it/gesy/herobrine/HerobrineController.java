@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Drives the client-side player NPC and the first stalking/attack behaviour. */
 public final class HerobrineController implements Listener {
-    private enum Mode { NONE, STALKING, ATTACK_WINDUP, ATTACKING }
+    private enum Mode { NONE, STALKING, STALKING_JUMPSCARE, ATTACK_WINDUP, ATTACKING }
 
     private static final AtomicInteger ENTITY_IDS = new AtomicInteger(1_500_000_000);
     private static final int ATTACK_DURATION_TICKS = 5 * 20;
@@ -60,6 +60,9 @@ public final class HerobrineController implements Listener {
     private String npcTeamName;
     private int jumpTicksRemaining;
     private double verticalVelocity;
+    private UUID huntingTargetId;
+    private int lastHuntingSlot = -1;
+    private int jumpscareRushTicks;
 
     public HerobrineController(HerobrineLegendPlugin plugin, EncounterState state) {
         this.plugin = plugin;
@@ -136,7 +139,7 @@ public final class HerobrineController implements Listener {
         mode = Mode.STALKING;
         forcedAttack = false;
         modeTicks = 0;
-        modeDurationTicks = 100;
+        modeDurationTicks = plugin.getConfig().getInt("herobrine.stalking.duration-seconds", 15) * 20;
         createNpc(spawn);
         if (npc == null) { despawn(); return false; }
         updateViewers();
@@ -152,6 +155,25 @@ public final class HerobrineController implements Listener {
         }
 
         if (npc == null) {
+            // Guaranteed slots at t=0,10,20,30,40,50 seconds of the active fear cycle.
+            if (horrorManager != null && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (!horrorManager.isHunting(player) || player.isDead()) continue;
+                    int elapsed = horrorManager.huntingElapsedSeconds(player);
+                    int interval = Math.max(6, plugin.getConfig().getInt("herobrine.hunting.appearance-interval-seconds", 10));
+                    int slot = elapsed / interval;
+                    if (elapsed >= 0 && elapsed < plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 60)
+                            && (huntingTargetId == null || !huntingTargetId.equals(player.getUniqueId()) || slot != lastHuntingSlot)) {
+                        Location spawn = findSpawnLocation(player);
+                        if (spawn != null) {
+                            huntingTargetId = player.getUniqueId();
+                            lastHuntingSlot = slot;
+                            startHuntingEncounter(player, spawn);
+                            return;
+                        }
+                    }
+                }
+            }
             if (nextAttemptTicks-- <= 0) {
                 nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 240));
                 tryStartEncounter();
@@ -166,26 +188,62 @@ public final class HerobrineController implements Listener {
             return;
         }
 
+        if (horrorManager != null && (mode == Mode.ATTACK_WINDUP || mode == Mode.ATTACKING)
+                && !forcedAttack && !horrorManager.isHunting(target)) {
+            despawn();
+            return;
+        }
+        if (horrorManager != null && horrorManager.isHunting(target) && mode == Mode.STALKING) {
+            despawn();
+            return;
+        }
         updateViewers();
         modeTicks++;
+        emitManifestationSmoke();
         if (stalkingContactCooldown > 0) stalkingContactCooldown--;
 
-        if (mode == Mode.STALKING) {
+        if (mode == Mode.STALKING_JUMPSCARE) {
             faceTarget();
             emitPresenceParticles();
-            if (npcLocation.distanceSquared(target.getLocation()) <= 2.25 && stalkingContactCooldown == 0) {
+            if (jumpscareRushTicks > 0) {
+                jumpscareRushTicks--;
+                chaseTargetWithoutDamage();
+                if (npcLocation.distanceSquared(target.getLocation()) <= 2.25) {
+                    target.damage(1.0);
+                    applyStalkingContactEffects(target, false);
+                    jumpscareRushTicks = 0;
+                    modeTicks = 0;
+                } else if (jumpscareRushTicks == 0) {
+                    despawn();
+                }
+                return;
+            }
+            if (modeTicks >= 20) {
+                despawn();
+                nextAttemptTicks = 40;
+            }
+            return;
+        }
+
+        if (mode == Mode.STALKING) {
+            if (modeTicks >= Math.max(1, plugin.getConfig().getInt("herobrine.stalking.duration-seconds", 15)) * 20) {
+                despawn();
+                nextAttemptTicks = 40;
+                return;
+            }
+            faceTarget();
+            emitPresenceParticles();
+            if (npcLocation.distanceSquared(target.getLocation()) <= 2.25
+                    && stalkingContactCooldown == 0 && !isTargetLookingAtHerobrine()) {
                 stalkingContactCooldown = 60;
-                target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0, false, false, true));
+                int fear = horrorManager == null ? 0 : horrorManager.getFear(target);
+                applyStalkingContactEffects(target, fear < 65);
                 Location impact = target.getLocation();
                 spawnOriginalVanishParticles(target.getWorld(), impact);
-                target.getWorld().strikeLightningEffect(impact);
-                target.getWorld().playSound(impact, Sound.ENTITY_GHAST_SCREAM, 1.1f, 0.55f);
-                Vector push = target.getLocation().toVector().subtract(npcLocation.toVector());
-                if (push.lengthSquared() < 0.001) push = target.getLocation().getDirection().multiply(-1);
-                push.setY(0);
-                if (push.lengthSquared() < 0.001) push.setX(1);
-                target.setVelocity(push.normalize().multiply(1.05).setY(0.45));
-                target.setHealth(Math.max(0.0, target.getHealth() - 1.0));
+                if (random.nextDouble() * 100.0 < plugin.getConfig().getDouble(
+                        "herobrine.stalking.despawn.lightning-chance-percent", 5.0))
+                    target.getWorld().strikeLightningEffect(impact);
+                target.damage(1.0);
                 despawn(false);
                 nextAttemptTicks = 40;
                 return;
@@ -193,11 +251,23 @@ public final class HerobrineController implements Listener {
             if (plugin.getConfig().getBoolean("herobrine.stalking.vanish-when-looked-at", true)
                     && npcLocation.distanceSquared(target.getLocation()) > 4.0
                     && isTargetLookingAtHerobrine()) {
-                despawn();
-                nextAttemptTicks = 40;
+                double chance = plugin.getConfig().getDouble("herobrine.stalking.eye-jumpscare.chance-percent", 8.0);
+                int fear = horrorManager == null ? 0 : horrorManager.getFear(target);
+                if (fear >= plugin.getConfig().getInt("herobrine.stalking.eye-jumpscare.min-fear", 65)
+                        && fear <= plugin.getConfig().getInt("herobrine.stalking.eye-jumpscare.max-fear", 99)
+                        && plugin.getConfig().getBoolean("herobrine.stalking.eye-jumpscare.enabled", true)
+                        && random.nextDouble() * 100.0 < chance) {
+                    mode = Mode.STALKING_JUMPSCARE;
+                    modeTicks = 0;
+                    jumpscareRushTicks = 20; // rush physically, without teleporting
+                    target.getWorld().playSound(target.getLocation(), Sound.ENTITY_GHAST_SCREAM, 1.0f, 0.65f);
+                } else {
+                    despawn();
+                    nextAttemptTicks = 40;
+                }
                 return;
             }
-            // Stalking ends only on player gaze, altar deactivation, or invalid target.
+            // Stalking ends after 15 seconds or when the player looks directly into its eyes.
             return;
         }
 
@@ -212,7 +282,7 @@ public final class HerobrineController implements Listener {
         }
 
         if (mode == Mode.ATTACKING) {
-            if (!forcedAttack && (horrorManager == null || !horrorManager.isHostile(target))) {
+            if (!forcedAttack && (horrorManager == null || !horrorManager.isHunting(target))) {
                 mode = Mode.STALKING;
                 modeTicks = 0;
                 modeDurationTicks = randomBetween(100, 160);
@@ -227,6 +297,20 @@ public final class HerobrineController implements Listener {
         }
     }
 
+    private void startHuntingEncounter(Player player, Location spawn) {
+        target = player;
+        mode = Mode.ATTACK_WINDUP;
+        modeTicks = 0;
+        modeDurationTicks = ATTACK_DURATION_TICKS;
+        attackCooldownTicks = 0;
+        forcedAttack = false;
+        npcLocation = spawn;
+        createNpc(spawn);
+        if (npc == null) { despawn(); return; }
+        updateViewers();
+        if (horrorManager != null) horrorManager.onEncounter(player, true);
+    }
+
     private void tryStartEncounter() {
         if (random.nextDouble() * 100.0 > plugin.getConfig().getDouble("herobrine.stalking.appearance-chance-percent", 25.0)) return;
         Location anchor = state.getAnchor();
@@ -237,6 +321,7 @@ public final class HerobrineController implements Listener {
             if (player.getWorld().equals(anchor.getWorld()) && !player.isDead()
                     && player.getGameMode() != org.bukkit.GameMode.SPECTATOR
                     && horrorManager != null
+                    && !horrorManager.isHunting(player)
                     && horrorManager.getFear(player) >= plugin.getConfig().getInt("herobrine.stalking.min-fear-to-appear", 30)) {
                 candidates.add(player);
             }
@@ -246,11 +331,11 @@ public final class HerobrineController implements Listener {
         target = candidates.get(random.nextInt(candidates.size()));
         double attackChance = plugin.getConfig().getDouble("combat.chase.start-chance-percent", 100.0);
         boolean stalkingEnabled = plugin.getConfig().getBoolean("herobrine.stalking.enabled", true);
-        boolean mayAttack = plugin.getConfig().getBoolean("combat.enabled", true) && horrorManager != null && horrorManager.isHostile(target);
+        boolean mayAttack = plugin.getConfig().getBoolean("combat.enabled", true) && horrorManager != null && horrorManager.isHunting(target);
         mode = mayAttack && random.nextDouble() * 100.0 < attackChance
                 ? Mode.ATTACK_WINDUP : Mode.STALKING;
         modeTicks = 0;
-        modeDurationTicks = mode == Mode.STALKING ? randomBetween(100, 160)
+        modeDurationTicks = mode == Mode.STALKING ? plugin.getConfig().getInt("herobrine.stalking.duration-seconds", 15) * 20
                 : ATTACK_DURATION_TICKS;
         attackCooldownTicks = 0;
 
@@ -358,9 +443,56 @@ public final class HerobrineController implements Listener {
     }
 
     private boolean isTargetLookingAtHerobrine() {
-        Vector toNpc = npcLocation.toVector().subtract(target.getEyeLocation().toVector()).normalize();
-        Vector look = target.getEyeLocation().getDirection().normalize();
-        return look.dot(toNpc) > 0.94 && target.getWorld().rayTraceBlocks(target.getEyeLocation(), toNpc, target.getEyeLocation().distance(npcLocation.clone().add(0, 1.0, 0))) == null;
+        Location eyes = npcLocation.clone().add(0, 1.62, 0);
+        Location playerEyes = target.getEyeLocation();
+        Vector toEyes = eyes.toVector().subtract(playerEyes.toVector());
+        double distance = toEyes.length();
+        if (distance < 0.001) return true;
+        Vector ray = toEyes.normalize();
+        // Narrow eye contact, not just looking toward the NPC's body.
+        double dot = playerEyes.getDirection().normalize().dot(ray);
+        double tolerance = Math.atan2(0.19, distance);
+        if (dot < Math.cos(Math.max(Math.toRadians(2.5), tolerance))) return false;
+        return target.getWorld().rayTraceBlocks(playerEyes, ray, distance) == null;
+    }
+
+    private boolean teleportNearTarget() {
+        Location player = target.getLocation();
+        Vector forward = player.getDirection().setY(0);
+        if (forward.lengthSquared() < 0.001) forward = new Vector(1, 0, 0);
+        forward.normalize();
+        // Appear within view, but not inside the player's collision box.
+        for (double angle : new double[]{0, 45, -45, 90, -90, 180}) {
+            Vector offset = forward.clone().rotateAroundY(Math.toRadians(angle)).multiply(1.7);
+            Location candidate = player.clone().add(offset);
+            candidate.setY(player.getY());
+            if (!hasRoom(candidate) || !hasSupport(candidate)) continue;
+            Location previous = npcLocation.clone();
+            candidate.setYaw(yawToward(candidate, target.getEyeLocation()));
+            candidate.setPitch(0);
+            // NPC.setLocation updates server-side position; packet teleport must reach viewers too.
+            npcLocation = candidate;
+            npc.setLocation(toPacketLocation(candidate));
+            npc.despawnAll();
+            updateViewers();
+            faceTarget();
+            return true;
+        }
+        return false;
+    }
+
+    private void chaseTargetWithoutDamage() {
+        if (npc == null || target == null) return;
+        Vector delta = target.getLocation().toVector().subtract(npcLocation.toVector());
+        Vector horizontal = new Vector(delta.getX(), 0, delta.getZ());
+        if (horizontal.lengthSquared() < 0.0001) return;
+        Vector motion = horizontal.normalize().multiply(Math.min(0.65, horizontal.length()));
+        Location next = resolveCollision(npcLocation, motion);
+        next.setYaw(npcLocation.getYaw());
+        next.setPitch(npcLocation.getPitch());
+        moveNpcSmoothly(npcLocation, next);
+        npcLocation = next;
+        npc.setLocation(toPacketLocation(npcLocation));
     }
 
     private void chaseTarget() {
@@ -376,7 +508,8 @@ public final class HerobrineController implements Listener {
             Vector step = horizontal.lengthSquared() < 0.0001 ? new Vector(0, 0, 0)
                     : horizontal.normalize().multiply(Math.min(speed, Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ())));
             Location next = resolveCollision(npcLocation, step);
-            if (next.distanceSquared(npcLocation) < 0.000001) return;
+            // Do not abort the entire chase tick when a wall blocks horizontal movement.
+            // Vertical jump/gravity must still advance, and melee logic must still run.
             next.setYaw(npcLocation.getYaw());
             next.setPitch(npcLocation.getPitch());
             moveNpcSmoothly(npcLocation, next);
@@ -394,63 +527,71 @@ public final class HerobrineController implements Listener {
         }
     }
 
-    /** Packet NPCs do not receive Minecraft gravity or stepping automatically.
-     *  Resolve vertical motion first, then walk horizontally only when the entire
-     *  player-sized bounding box is free. Never move through a solid block. */
+    /** Packet NPC physics: jump ahead of a one-block ledge, integrate vertical
+     * velocity every tick and never pass through solid blocks. */
     private Location resolveCollision(Location origin, Vector motion) {
-        Location standing = origin.clone();
-        boolean grounded = hasSupport(standing);
+        Location feet = origin.clone();
+        Vector horizontal = motion.clone().setY(0);
+        boolean grounded = hasSupport(feet);
 
-        // Predict a full block ahead, not just the current fractional movement.
-        // A packet NPC has no native step-up AI; jump early enough to clear the ledge.
-        Vector direction = motion.clone().setY(0);
-        if (grounded && jumpTicksRemaining == 0
+        if (grounded && verticalVelocity <= 0 && jumpTicksRemaining == 0
                 && plugin.getConfig().getBoolean("combat.chase.auto-jump", true)
-                && direction.lengthSquared() > 0.00001) {
-            direction.normalize();
-            Location probe = standing.clone().add(direction.clone().multiply(0.55));
-            Location immediate = standing.clone().add(motion.getX(), 0, motion.getZ());
-            boolean obstacle = !hasRoom(probe) || !hasRoom(immediate);
-            // Space above both feet and obstacle, plus a solid ledge to land on.
-            if (obstacle && hasRoom(standing.clone().add(0, 0.55, 0))
-                    && hasRoom(standing.clone().add(0, 1.10, 0))
-                    && hasRoom(probe.clone().add(0, 1.10, 0))) {
+                && horizontal.lengthSquared() > 0.00001) {
+            Vector direction = horizontal.clone().normalize();
+            // Look ahead farther than one movement tick: the NPC must start
+            // rising BEFORE its body reaches the face of the ledge.
+            double lookAhead = Math.max(0.85, horizontal.length() + 0.55);
+            Location ahead = feet.clone().add(direction.multiply(lookAhead));
+            Location nextStep = feet.clone().add(horizontal);
+            boolean blocked = !hasRoom(ahead) || !hasRoom(nextStep);
+            // A 1-block obstacle has free space at feet+1, whereas a wall
+            // taller than one block cannot be jumped.
+            boolean oneBlockLedge = blocked
+                    && hasRoom(feet.clone().add(0, 1.01, 0))
+                    && hasRoom(ahead.clone().add(0, 1.01, 0));
+            if (oneBlockLedge) {
                 verticalVelocity = 0.52;
                 jumpTicksRemaining = 1;
             }
         }
 
-        // Gravity applies every tick, including when the NPC walks off a ledge.
+        // Vertical physics must run even while horizontal movement is blocked.
         if (jumpTicksRemaining > 0 || !grounded) {
             double dy = verticalVelocity;
             if (dy > 0) {
-                // Stop at ceilings rather than clipping through them.
-                Location up = standing.clone().add(0, dy, 0);
-                if (hasRoom(up)) standing = up;
-                else verticalVelocity = 0;
-            } else {
-                // Substeps prevent falling through thin floors or stairs.
-                double remaining = Math.min(0.65, Math.abs(dy));
+                // Move upward in small steps to prevent ceiling clipping.
+                double remaining = dy;
                 while (remaining > 0.0001) {
                     double step = Math.min(0.10, remaining);
-                    Location down = standing.clone().subtract(0, step, 0);
+                    Location up = feet.clone().add(0, step, 0);
+                    if (!hasRoom(up)) {
+                        verticalVelocity = 0;
+                        break;
+                    }
+                    feet = up;
+                    remaining -= step;
+                }
+            } else if (dy < 0) {
+                double remaining = Math.min(0.65, -dy);
+                while (remaining > 0.0001) {
+                    double step = Math.min(0.10, remaining);
+                    Location down = feet.clone().subtract(0, step, 0);
                     if (!hasRoom(down) || hasSupport(down)) {
-                        // Snap to the top of the block supporting the NPC.
-                        double top = Math.floor(standing.getY() - 0.02) + 1;
-                        Location snapped = standing.clone();
-                        snapped.setY(top);
-                        if (snapped.getY() <= standing.getY() + 0.001 && hasRoom(snapped) && hasSupport(snapped)) standing = snapped;
+                        // Stop at the current floor; never snap upwards into
+                        // an unrelated block or fall through the landing ledge.
                         verticalVelocity = 0;
                         jumpTicksRemaining = 0;
                         break;
                     }
-                    standing = down;
+                    feet = down;
                     remaining -= step;
                 }
             }
-            if (!hasSupport(standing)) {
+            // Do not cancel the upward half of a jump merely because a floor
+            // is still close below the NPC.
+            if (verticalVelocity > 0 || !hasSupport(feet)) {
                 verticalVelocity = Math.max(-0.65, verticalVelocity - 0.08);
-            } else if (verticalVelocity <= 0) {
+            } else {
                 verticalVelocity = 0;
                 jumpTicksRemaining = 0;
             }
@@ -458,13 +599,13 @@ public final class HerobrineController implements Listener {
             verticalVelocity = 0;
         }
 
-        Location candidate = standing.clone().add(motion.getX(), 0, motion.getZ());
+        Location candidate = feet.clone().add(horizontal);
         if (hasRoom(candidate)) return candidate;
-        Location alongX = standing.clone().add(motion.getX(), 0, 0);
-        Location alongZ = standing.clone().add(0, 0, motion.getZ());
+        Location alongX = feet.clone().add(horizontal.getX(), 0, 0);
+        Location alongZ = feet.clone().add(0, 0, horizontal.getZ());
         if (hasRoom(alongX)) return alongX;
         if (hasRoom(alongZ)) return alongZ;
-        return standing;
+        return feet;
     }
 
     private boolean hasRoom(Location feet) {
@@ -489,6 +630,29 @@ public final class HerobrineController implements Listener {
         return length < 0.01 || npcLocation.getWorld().rayTraceBlocks(eye, ray.normalize(), length) == null;
     }
 
+    private void applyStalkingContactEffects(Player player, boolean knockbackEnabled) {
+        int ticks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.contact.effect-duration-ticks", 20));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, ticks, 0, false, false, true));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, ticks, 0, false, false, true));
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_GHAST_SCREAM, 1.1f, 0.55f);
+        if (knockbackEnabled && npcLocation != null) {
+            Vector push = player.getLocation().toVector().subtract(npcLocation.toVector()).setY(0);
+            if (push.lengthSquared() < 0.001) push = player.getLocation().getDirection().multiply(-1).setY(0);
+            if (push.lengthSquared() < 0.001) push = new Vector(1, 0, 0);
+            double strength = Math.max(0.0, plugin.getConfig().getDouble("herobrine.stalking.contact.knockback-strength", 2.0));
+            player.setVelocity(push.normalize().multiply(strength * 0.5).setY(0.45));
+        }
+    }
+
+    private void emitManifestationSmoke() {
+        if (npcLocation == null || !plugin.getConfig().getBoolean("herobrine.appearance.manifestation-smoke.enabled", true)) return;
+        int duration = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.duration-seconds", 3)) * 20;
+        if (modeTicks > duration) return;
+        if (modeTicks % 2 != 0) return;
+        npcLocation.getWorld().spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 0.95, 0),
+                5, 0.4, 0.85, 0.4, 0.005);
+    }
+
     private void emitPresenceParticles() {
         if (npcLocation == null || modeTicks % 5 != 0) return;
         npcLocation.getWorld().spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 1, 0), 3, .25, .65, .25, .01);
@@ -500,11 +664,11 @@ public final class HerobrineController implements Listener {
         Location at = npcLocation.clone();
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
-            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.55f);
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.65f);
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
         spawnOriginalVanishParticles(world, at);
-        boolean lightning = mode == Mode.STALKING && random.nextDouble() * 100 <
+        boolean lightning = (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE) && random.nextDouble() * 100 <
                 plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 5);
         if (lightning) world.strikeLightningEffect(at); // Rare visual-only addition; never replaces particles.
     }
@@ -557,6 +721,7 @@ public final class HerobrineController implements Listener {
         mode = Mode.NONE;
         modeTicks = 0;
         forcedAttack = false;
+        jumpscareRushTicks = 0;
     }
 
     private int randomBetween(int min, int max) {

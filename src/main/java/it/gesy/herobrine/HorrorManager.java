@@ -23,6 +23,7 @@ public final class HorrorManager {
     private final Random random = new Random();
     private final Map<UUID, Integer> fear = new HashMap<>();
     private final Set<UUID> hostile = new HashSet<>();
+    private final Map<UUID, Integer> huntingStarted = new HashMap<>();
     private BukkitTask task;
     private int ticks;
     private final Soundscape soundscape;
@@ -46,6 +47,7 @@ public final class HorrorManager {
         task = null;
         fear.clear();
         hostile.clear();
+        huntingStarted.clear();
     }
 
     public void onEncounter(Player player, boolean attacking) {
@@ -62,9 +64,19 @@ public final class HorrorManager {
 
     private void tick() {
         ticks++;
+        int duration = Math.max(1, plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 60));
+        if (plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
+            for (UUID id : new HashSet<>(huntingStarted.keySet())) {
+                if (ticks - huntingStarted.get(id) >= duration) {
+                    huntingStarted.remove(id);
+                    fear.put(id, Math.max(0, plugin.getConfig().getInt("fear.cycling.reset-to", 0)));
+                    updateHostility(id, fear.get(id));
+                }
+            }
+        }
         if (ticks % 60 == 0) {
             int decay = Math.max(0, plugin.getConfig().getInt("horror.fear.decay-per-minute", 1));
-            fear.replaceAll((uuid, amount) -> Math.max(0, amount - decay));
+            fear.replaceAll((uuid, amount) -> huntingStarted.containsKey(uuid) ? amount : Math.max(0, amount - decay));
             for (Map.Entry<UUID, Integer> entry : fear.entrySet()) updateHostility(entry.getKey(), entry.getValue());
         }
         if (!state.isActive() || !plugin.getConfig().getBoolean("horror.enabled", true)) return;
@@ -116,16 +128,32 @@ public final class HorrorManager {
     private void addFear(Player player, int amount) {
         if (!plugin.getConfig().getBoolean("horror.fear.enabled", true)) return;
         int max = Math.max(1, plugin.getConfig().getInt("horror.fear.max-level", 100));
-        int current = fear.merge(player.getUniqueId(), Math.max(0, amount), (a,b) -> Math.min(max, a+b));
-        updateHostility(player.getUniqueId(), current);
+        UUID id = player.getUniqueId();
+        if (huntingStarted.containsKey(id)) return;
+        int current = fear.merge(id, Math.max(0, amount), (a,b) -> Math.min(max, a+b));
+        if (current >= max && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) huntingStarted.put(id, ticks);
+        updateHostility(id, current);
     }
     public int getFear(Player player) { return fear.getOrDefault(player.getUniqueId(), 0); }
 
     public void setFear(Player player, int level) {
         int max = Math.max(1, plugin.getConfig().getInt("fear.max-level", 100));
         int clamped = Math.max(0, Math.min(max, level));
-        fear.put(player.getUniqueId(), clamped);
-        updateHostility(player.getUniqueId(), clamped);
+        UUID id = player.getUniqueId();
+        fear.put(id, clamped);
+        huntingStarted.remove(id);
+        if (clamped >= max && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) huntingStarted.put(id, ticks);
+        updateHostility(id, clamped);
+    }
+
+    public boolean isHunting(Player player) {
+        return player != null && huntingStarted.containsKey(player.getUniqueId())
+                && plugin.getConfig().getBoolean("fear.cycling.enabled", true);
+    }
+
+    public int huntingElapsedSeconds(Player player) {
+        Integer started = player == null ? null : huntingStarted.get(player.getUniqueId());
+        return started == null ? -1 : Math.max(0, ticks - started);
     }
 
     public boolean isHostile(Player player) {

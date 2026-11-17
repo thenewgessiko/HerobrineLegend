@@ -15,6 +15,10 @@ engine:
       signature: 'ROX1J4x56zzVAd1M34lRtxgmldowgIVCmcIARhaJa2+F6RSeEj5ujVu2aFmXjVRDaslTz5N5d+0xQxIMnAabwefwFxLyp6FBl/UrXg4yZczfdaZhqHeHXzgoKFhuK9ebpuABOehyRb0eRpO7YLoaC9QaS+EpzUA/kRvDPf/mTdJmQgoKIk0fDCCUNwlqpq0MP/59nF4qPPbQ0EMjzjXLNALXPSzJQRMKKMS0+oQwQE0vPlCbqj2vaZGtiM6GnAHKqQU5ZvloR7CnV0umcLuLuRYmE/agWLiK5LCQVTHC3XmG3FE+GRLttyIc0CqHeGjcbVkMZnu1mN71ZIeqneURpEIfltiYNZVBB8gaJUwu7jLVc9TvXCdsI1aHbW6NyDXl2qOckOogIi/29cf3+eHA/LZIcJM883ydGskcQVI1SEZtzjZ2ZI9vKHZf+vNIqWSaYk/gmU+xMXyWPMMKJRQgWmQ0Ug+NWLKJeurggR/H1d86ksYuSn3wk9GHIMRj9c3p5CQSk7J/D5UmbEB4wvuJZNKap2TC0yhdct6qgj9omAV5leQQ1BuyZKo7bPMaiM2pM9rQnZyScLmMqHjhtOvkpMoJ7Z+oJYhmfQUa4wt+e+g+Z73WTkEZDCJLXXGTP2Bvaol5GGi5yGr7uE6ONAbsJXKVmEM8urAPXJm5iM0bSj8='
 
 fear:
+  cycling:
+    enabled: true
+    hunting-duration-seconds: 60
+    reset-to: 0
   enabled: true
   decay-rate: 1
   max-level: 100
@@ -146,10 +150,24 @@ herobrine:
     check-interval-ticks: 240
     appearance-chance-percent: 25.0
     vanish-when-looked-at: true
+    duration-seconds: 15
+    contact:
+      effect-duration-ticks: 20 # 1 secondo di cecità e nausea
+      knockback-strength: 2.0 # Solo per Fear 30-64; 0.5x applicato alla velocità
+    eye-jumpscare:
+      enabled: true
+      min-fear: 65
+      max-fear: 99
+      chance-percent: 8.0
     despawn:
       lightning-chance-percent: 5
 
+  hunting:
+    appearance-interval-seconds: 10
   appearance:
+    manifestation-smoke:
+      enabled: true
+      duration-seconds: 3
     # Il modello usato è un player NPC PacketEvents, non uno zombie.
     normal-player-arms: true
     skin:
