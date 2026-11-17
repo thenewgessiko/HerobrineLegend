@@ -2,6 +2,8 @@ name: Build HerobrineLegend
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '0.4.4'
   workflow_dispatch:
