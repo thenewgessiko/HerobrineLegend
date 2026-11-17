@@ -4,9 +4,23 @@ import com.github.retrooper.packetevents.PacketEvents;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class HerobrineLegendPlugin extends JavaPlugin {
+public final class HerobrineLegendPlugin extends JavaPlugin implements TabCompleter {
+    // Keep command suggestions in one registry, reused by the completer.
+    private static final List<String> SUBCOMMANDS = Collections.unmodifiableList(Arrays.asList(
+            "status", "jumpscare", "attack", "fear", "setfear", "reload"));
+    private static final List<String> PLAYER_ARGUMENT_COMMANDS = Collections.unmodifiableList(Arrays.asList(
+            "jumpscare", "attack", "fear", "setfear"));
+    private static final List<String> FEAR_VALUES = Collections.unmodifiableList(Arrays.asList(
+            "0", "5", "25", "30", "50", "65", "75", "99", "100"));
     private RitualManager ritualManager;
     private HorrorManager horrorManager;
     private EncounterState encounterState;
@@ -27,6 +41,8 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+
+        getCommand("herobrine").setTabCompleter(this);
 
         encounterState = new EncounterState(this);
         encounterState.load();
@@ -119,4 +135,34 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
         sender.sendMessage(ChatColor.YELLOW + "/herobrine status | jumpscare <player> | attack <player> | fear <player> | setfear <player> <amount> | reload");
         return true;
     }
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (!command.getName().equalsIgnoreCase("herobrine")
+                || !sender.hasPermission("herobrinelegend.admin")) {
+            return Collections.emptyList();
+        }
+        if (args.length == 1) return matching(SUBCOMMANDS, args[0]);
+        if (args.length == 2 && PLAYER_ARGUMENT_COMMANDS.contains(args[0].toLowerCase(Locale.ROOT))) {
+            List<String> names = new ArrayList<>();
+            for (Player player : getServer().getOnlinePlayers()) {
+                if (sender instanceof Player && !((Player) sender).canSee(player)) continue;
+                names.add(player.getName());
+            }
+            return matching(names, args[1]);
+        }
+        if (args.length == 3 && args[0].equalsIgnoreCase("setfear")) {
+            return matching(FEAR_VALUES, args[2]);
+        }
+        return Collections.emptyList();
+    }
+
+    private static List<String> matching(List<String> values, String prefix) {
+        String lower = prefix.toLowerCase(Locale.ROOT);
+        List<String> matches = new ArrayList<>();
+        for (String value : values) {
+            if (value.toLowerCase(Locale.ROOT).startsWith(lower)) matches.add(value);
+        }
+        return matches;
+    }
+
 }
