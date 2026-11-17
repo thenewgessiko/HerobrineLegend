@@ -146,7 +146,7 @@ herobrine:
     appearance-chance-percent: 25.0
     vanish-when-looked-at: true
     despawn:
-      lightning-chance-percent: 25
+      lightning-chance-percent: 5
 
   appearance:
     # Il modello usato è un player NPC PacketEvents, non uno zombie.

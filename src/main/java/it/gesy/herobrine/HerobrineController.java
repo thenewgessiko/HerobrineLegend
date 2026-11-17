@@ -59,8 +59,7 @@ public final class HerobrineController implements Listener {
     private String npcProfileName;
     private String npcTeamName;
     private int jumpTicksRemaining;
-    private double jumpStartY;
-    private double jumpEndY;
+    private double verticalVelocity;
 
     public HerobrineController(HerobrineLegendPlugin plugin, EncounterState state) {
         this.plugin = plugin;
@@ -341,8 +340,13 @@ public final class HerobrineController implements Listener {
 
     private void faceTarget() {
         if (npc == null || target == null) return;
-        npcLocation.setYaw(yawToward(npcLocation, target.getLocation()));
-        npc.updateRotation(npcLocation.getYaw(), 0.0f);
+        Location eyes = npcLocation.clone().add(0, 1.62, 0);
+        Location targetEyes = target.getEyeLocation();
+        npcLocation.setYaw(yawToward(eyes, targetEyes));
+        double horizontal = Math.hypot(targetEyes.getX() - eyes.getX(), targetEyes.getZ() - eyes.getZ());
+        float pitch = (float) Math.toDegrees(Math.atan2(eyes.getY() - targetEyes.getY(), horizontal));
+        npcLocation.setPitch(Math.max(-85.0f, Math.min(85.0f, pitch)));
+        npc.updateRotation(npcLocation.getYaw(), npcLocation.getPitch());
     }
 
     private boolean isTargetLookingAtHerobrine() {
@@ -365,8 +369,8 @@ public final class HerobrineController implements Listener {
                     : horizontal.normalize().multiply(Math.min(speed, Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ())));
             Location next = resolveCollision(npcLocation, step);
             if (next.distanceSquared(npcLocation) < 0.000001) return;
-            next.setYaw(yawToward(next, targetLocation));
-            next.setPitch(0.0f);
+            next.setYaw(npcLocation.getYaw());
+            next.setPitch(npcLocation.getPitch());
             moveNpcSmoothly(npcLocation, next);
             npcLocation = next;
             npc.setLocation(toPacketLocation(npcLocation));
@@ -382,54 +386,70 @@ public final class HerobrineController implements Listener {
         }
     }
 
-    /** Client-side NPCs have no Bukkit physics. Walk the jump arc in small packet steps. */
+    /** Packet NPCs do not receive Minecraft gravity or stepping automatically.
+     *  Resolve vertical motion first, then walk horizontally only when the entire
+     *  player-sized bounding box is free. Never move through a solid block. */
     private Location resolveCollision(Location origin, Vector motion) {
-        Location forward = origin.clone().add(motion.getX(), 0, motion.getZ());
-        if (jumpTicksRemaining > 0) {
-            int elapsed = 6 - jumpTicksRemaining + 1;
-            double progress = elapsed / 6.0;
-            double desiredY = jumpStartY + (jumpEndY - jumpStartY) * progress
-                    + Math.sin(Math.PI * progress) * 0.42;
-            Location candidate = forward.clone();
-            candidate.setY(desiredY);
-            if (!hasRoom(candidate)) {
-                candidate = origin.clone();
-                candidate.setY(desiredY);
-            }
-            if (!hasRoom(candidate)) return origin.clone();
-            jumpTicksRemaining--;
-            if (jumpTicksRemaining == 0) {
-                candidate.setY(jumpEndY);
-                if (!hasRoom(candidate) || !hasSupport(candidate)) return origin.clone();
-            }
-            return candidate;
-        }
-        if (hasRoom(forward) && hasSupport(forward)) return forward;
+        Location standing = origin.clone();
+        boolean grounded = hasSupport(standing);
 
-        if (plugin.getConfig().getBoolean("combat.chase.auto-jump", true)) {
-            // Detect the obstructing block at the NPC's feet; the landing area
-            // must have a solid floor exactly one block above the old floor.
-            Location landing = forward.clone().add(0, 1, 0);
-            Location launch = origin.clone().add(0, 0.55, 0);
-            Location overhead = origin.clone().add(0, 1, 0);
-            if (hasRoom(launch) && hasRoom(overhead) && hasRoom(landing)
-                    && hasSupport(landing) && !hasRoom(forward)) {
-                jumpStartY = origin.getY();
-                jumpEndY = landing.getY();
-                jumpTicksRemaining = 6;
-                return resolveCollision(origin, motion);
-            }
+        // Start a jump when the next horizontal step is obstructed by a one-block ledge.
+        Location forward = standing.clone().add(motion.getX(), 0, motion.getZ());
+        if (grounded && jumpTicksRemaining == 0
+                && plugin.getConfig().getBoolean("combat.chase.auto-jump", true)
+                && !hasRoom(forward) && hasRoom(standing.clone().add(0, 0.5, 0))
+                && hasRoom(standing.clone().add(0, 1.01, 0))
+                && hasRoom(forward.clone().add(0, 1.01, 0))
+                && hasSupport(forward.clone().add(0, 1.01, 0))) {
+            verticalVelocity = 0.43;
+            jumpTicksRemaining = 1;
         }
 
-        Location alongX = origin.clone().add(motion.getX(), 0, 0);
-        Location alongZ = origin.clone().add(0, 0, motion.getZ());
-        if (hasRoom(alongX) && hasSupport(alongX)) return alongX;
-        if (hasRoom(alongZ) && hasSupport(alongZ)) return alongZ;
-        if (hasRoom(forward)) {
-            Location down = forward.clone().subtract(0, 1, 0);
-            if (hasRoom(down) && hasSupport(down)) return down;
+        // Gravity applies every tick, including when the NPC walks off a ledge.
+        if (jumpTicksRemaining > 0 || !grounded) {
+            double dy = verticalVelocity;
+            if (dy > 0) {
+                // Stop at ceilings rather than clipping through them.
+                Location up = standing.clone().add(0, dy, 0);
+                if (hasRoom(up)) standing = up;
+                else verticalVelocity = 0;
+            } else {
+                // Substeps prevent falling through thin floors or stairs.
+                double remaining = Math.min(0.65, Math.abs(dy));
+                while (remaining > 0.0001) {
+                    double step = Math.min(0.10, remaining);
+                    Location down = standing.clone().subtract(0, step, 0);
+                    if (!hasRoom(down) || hasSupport(down)) {
+                        // Snap to the top of the block supporting the NPC.
+                        double top = Math.floor(standing.getY() - 0.02) + 1;
+                        Location snapped = standing.clone();
+                        snapped.setY(top);
+                        if (snapped.getY() <= standing.getY() + 0.001 && hasRoom(snapped) && hasSupport(snapped)) standing = snapped;
+                        verticalVelocity = 0;
+                        jumpTicksRemaining = 0;
+                        break;
+                    }
+                    standing = down;
+                    remaining -= step;
+                }
+            }
+            if (!hasSupport(standing)) {
+                verticalVelocity = Math.max(-0.65, verticalVelocity - 0.08);
+            } else if (verticalVelocity <= 0) {
+                verticalVelocity = 0;
+                jumpTicksRemaining = 0;
+            }
+        } else {
+            verticalVelocity = 0;
         }
-        return origin.clone();
+
+        Location candidate = standing.clone().add(motion.getX(), 0, motion.getZ());
+        if (hasRoom(candidate)) return candidate;
+        Location alongX = standing.clone().add(motion.getX(), 0, 0);
+        Location alongZ = standing.clone().add(0, 0, motion.getZ());
+        if (hasRoom(alongX)) return alongX;
+        if (hasRoom(alongZ)) return alongZ;
+        return standing;
     }
 
     private boolean hasRoom(Location feet) {
@@ -465,13 +485,13 @@ public final class HerobrineController implements Listener {
         Location at = npcLocation.clone();
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
-            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.55f);
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.85f);
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
+        spawnOriginalVanishParticles(world, at);
         boolean lightning = mode == Mode.STALKING && random.nextDouble() * 100 <
-                plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 25);
-        if (lightning) world.strikeLightningEffect(at); // visual only: no fire
-        else spawnOriginalVanishParticles(world, at);
+                plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 5);
+        if (lightning) world.strikeLightningEffect(at); // Rare visual-only addition; never replaces particles.
     }
 
     private void spawnOriginalVanishParticles(World world, Location at) {
@@ -515,6 +535,7 @@ public final class HerobrineController implements Listener {
         if (npc != null) npc.despawnAll();
         removeNameTeams();
         jumpTicksRemaining = 0;
+        verticalVelocity = 0;
         npc = null;
         target = null;
         npcLocation = null;
