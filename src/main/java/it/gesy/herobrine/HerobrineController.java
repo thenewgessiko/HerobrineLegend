@@ -68,7 +68,7 @@ public final class HerobrineController implements Listener {
     private int jumpTicksRemaining;
     private double verticalVelocity;
     // One global NPC, independent cooldowns and hunt progress per player.
-    private final Map<UUID, Long> nextEligibleAt = new HashMap<>();
+    private long nextGlobalAppearanceAt;
     private final Map<UUID, Integer> completedHunts = new HashMap<>();
     private UUID lastSelectedTarget;
     private boolean huntingAppearanceInProgress;
@@ -93,7 +93,7 @@ public final class HerobrineController implements Listener {
     /** Called by the ritual manager so deactivation is visible immediately. */
     public void deactivateImmediately() {
         huntingAppearanceInProgress = false;
-        nextEligibleAt.clear();
+        nextGlobalAppearanceAt = encounterClockTicks;
         completedHunts.clear();
         lastSelectedTarget = null;
         despawn();
@@ -168,7 +168,7 @@ public final class HerobrineController implements Listener {
         boolean stalkingSlot = encounterClockTicks >= nextStalkingAttemptAt;
         if (!state.isActive()) {
             huntingAppearanceInProgress = false;
-            nextEligibleAt.clear();
+            nextGlobalAppearanceAt = encounterClockTicks;
             completedHunts.clear();
             lastSelectedTarget = null;
             if (npc != null) despawn();
@@ -177,12 +177,11 @@ public final class HerobrineController implements Listener {
         }
 
         if (npc == null) {
-            // Round-robin over all eligible players, regardless of online population.
-            // Each player keeps their own 15-second post-despawn cooldown.
+            // One server-wide cooldown, measured from the last actual NPC disappearance.
             if (stalkingSlot) {
                 nextStalkingAttemptAt = encounterClockTicks + stalkingInterval;
             }
-            tryStartNextEligibleEncounter();
+            if (encounterClockTicks >= nextGlobalAppearanceAt) tryStartNextEligibleEncounter();
             return;
         }
 
@@ -335,8 +334,7 @@ public final class HerobrineController implements Listener {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()
                     || player.getGameMode() == org.bukkit.GameMode.SPECTATOR
-                    || horrorManager.getFear(player) < plugin.getConfig().getInt("herobrine.stalking.min-fear-to-appear", 30)
-                    || encounterClockTicks < nextEligibleAt.getOrDefault(player.getUniqueId(), 0L)) continue;
+                    || horrorManager.getFear(player) < plugin.getConfig().getInt("herobrine.stalking.min-fear-to-appear", 30)) continue;
             candidates.add(player);
         }
         if (candidates.isEmpty()) return;
@@ -769,12 +767,13 @@ public final class HerobrineController implements Listener {
     private void despawn() { despawn(true); }
 
     private void despawn(boolean effects) {
+        if (npc != null) {
+            // Every real disappearance starts a 15-second GLOBAL cooldown.
+            // No other player can be targeted until it expires.
+            nextGlobalAppearanceAt = encounterClockTicks + 300L;
+        }
         if (npc != null && target != null && !forcedAttack) {
             UUID id = target.getUniqueId();
-            long interval = (mode == Mode.ATTACK_WINDUP || mode == Mode.ATTACKING)
-                    ? Math.max(1, plugin.getConfig().getInt("herobrine.hunting.appearance-interval-seconds", 15)) * 20L
-                    : Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
-            nextEligibleAt.put(id, encounterClockTicks + interval);
             if (huntingAppearanceInProgress && (mode == Mode.ATTACK_WINDUP || mode == Mode.ATTACKING)) {
                 int count = completedHunts.merge(id, 1, Integer::sum);
                 if (count >= 6 && horrorManager != null) {

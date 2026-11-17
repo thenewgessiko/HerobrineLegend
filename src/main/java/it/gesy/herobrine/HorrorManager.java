@@ -26,6 +26,8 @@ public final class HorrorManager {
     private final Map<UUID, Integer> huntingStarted = new HashMap<>();
     private BukkitTask task;
     private int ticks;
+    private final Map<UUID, Integer> nextAmbientAt = new HashMap<>();
+    private final Map<UUID, Integer> nextHallucinationAt = new HashMap<>();
     private final Soundscape soundscape;
 
     public HorrorManager(HerobrineLegendPlugin plugin, EncounterState state) {
@@ -37,10 +39,16 @@ public final class HorrorManager {
     public void start() {
         shutdown();
         ticks = 0;
+        nextAmbientAt.clear();
+        nextHallucinationAt.clear();
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
-    public void refreshConfiguration() { ticks = 0; }
+    public void refreshConfiguration() {
+        ticks = 0;
+        nextAmbientAt.clear();
+        nextHallucinationAt.clear();
+    }
 
     public void shutdown() {
         if (task != null) task.cancel();
@@ -48,6 +56,8 @@ public final class HorrorManager {
         fear.clear();
         hostile.clear();
         huntingStarted.clear();
+        nextAmbientAt.clear();
+        nextHallucinationAt.clear();
     }
 
     public void onEncounter(Player player, boolean attacking) {
@@ -78,13 +88,22 @@ public final class HorrorManager {
                     || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
             // Independent ambience/hallucinations only in the pre-stalking phase.
             // No autonomous sounds or Fear increments during stalking/hunting.
-            if (getFear(player) >= 30) continue;
-            if (ticks % audioInterval == 0
+            UUID playerId = player.getUniqueId();
+            if (getFear(player) >= 30) {
+                nextAmbientAt.remove(playerId);
+                nextHallucinationAt.remove(playerId);
+                continue;
+            }
+            boolean audioDue = ticks >= nextAmbientAt.computeIfAbsent(playerId, id -> ticks + audioInterval);
+            boolean hallucinationDue = ticks >= nextHallucinationAt.computeIfAbsent(playerId, id -> ticks + hallucinationInterval);
+            if (audioDue) nextAmbientAt.put(playerId, ticks + audioInterval);
+            if (hallucinationDue) nextHallucinationAt.put(playerId, ticks + hallucinationInterval);
+            if (audioDue
                     && random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 75.0)
                     && soundscape.playLowFearAmbient(player)) {
                 addFear(player, plugin.getConfig().getInt("fear.triggers.hear-sound", 5));
             }
-            if (ticks % hallucinationInterval == 0) {
+            if (hallucinationDue) {
                 double chance = plugin.getConfig().getDouble("horror.hallucinations.chance-percent", 20.0);
                 int level = fear.getOrDefault(player.getUniqueId(), 0);
                 if (random.nextDouble() * 100 < Math.min(100, chance + level * .25)) {
@@ -133,6 +152,8 @@ public final class HorrorManager {
         fear.clear();
         hostile.clear();
         huntingStarted.clear();
+        nextAmbientAt.clear();
+        nextHallucinationAt.clear();
     }
 
     public int getFear(Player player) { return fear.getOrDefault(player.getUniqueId(), 0); }
@@ -153,6 +174,8 @@ public final class HorrorManager {
         if (huntingStarted.remove(id) != null) {
             int reset = Math.max(0, plugin.getConfig().getInt("fear.cycling.reset-to", 0));
             fear.put(id, reset);
+            nextAmbientAt.remove(id);
+            nextHallucinationAt.remove(id);
             updateHostility(id, reset);
         }
     }
