@@ -42,6 +42,20 @@ public final class Soundscape {
             float pitch = (float) Math.max(0.5, Math.min(0.90,
                     basePitch + (random.nextDouble() - 0.5) * 0.16));
             player.playSound(location, sound, volume, pitch);
+            // A heartbeat has two closely spaced beats (lub-dub).
+            // The second beat is purely acoustic: it must not count as
+            // another event, increase Fear, or alter any encounter timer.
+            if (sound == Sound.ENTITY_WARDEN_HEARTBEAT) {
+                Location beatAt = location.clone();
+                float secondVolume = volume * 0.85f;
+                float secondPitch = Math.max(0.5f, pitch * 0.94f);
+                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (player.isOnline()) {
+                        player.playSound(beatAt, Sound.ENTITY_WARDEN_HEARTBEAT,
+                                secondVolume, secondPitch);
+                    }
+                }, 3L);
+            }
             return true;
         } catch (IllegalArgumentException e) {
             plugin.getLogger().warning("Invalid soundscape.events." + key + ".sound: " + name);
