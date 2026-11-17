@@ -153,7 +153,7 @@ public final class HerobrineController implements Listener {
 
         if (npc == null) {
             if (nextAttemptTicks-- <= 0) {
-                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 40));
+                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 240));
                 tryStartEncounter();
             }
             return;
