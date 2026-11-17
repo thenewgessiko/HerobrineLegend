@@ -64,16 +64,8 @@ public final class HorrorManager {
 
     private void tick() {
         ticks++;
-        int duration = Math.max(1, plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 90));
-        if (plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
-            for (UUID id : new HashSet<>(huntingStarted.keySet())) {
-                if (ticks - huntingStarted.get(id) >= duration) {
-                    huntingStarted.remove(id);
-                    fear.put(id, Math.max(0, plugin.getConfig().getInt("fear.cycling.reset-to", 0)));
-                    updateHostility(id, fear.get(id));
-                }
-            }
-        }
+        // Hunting ends only after the controller confirms six complete
+        // disappearances. Do not time out at 90 seconds.
         if (ticks % 60 == 0) {
             int decay = Math.max(0, plugin.getConfig().getInt("horror.fear.decay-per-minute", 1));
             fear.replaceAll((uuid, amount) -> huntingStarted.containsKey(uuid) ? amount : Math.max(0, amount - decay));
@@ -149,6 +141,16 @@ public final class HorrorManager {
         huntingStarted.remove(id);
         if (clamped >= max && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) huntingStarted.put(id, ticks);
         updateHostility(id, clamped);
+    }
+
+    public void finishHunting(Player player) {
+        if (player == null) return;
+        UUID id = player.getUniqueId();
+        if (huntingStarted.remove(id) != null) {
+            int reset = Math.max(0, plugin.getConfig().getInt("fear.cycling.reset-to", 0));
+            fear.put(id, reset);
+            updateHostility(id, reset);
+        }
     }
 
     public boolean isHunting(Player player) {

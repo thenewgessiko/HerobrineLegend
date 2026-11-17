@@ -17,7 +17,8 @@ engine:
 fear:
   cycling:
     enabled: true
-    hunting-duration-seconds: 90
+    # Hunting now ends after the sixth disappearance, not after a fixed duration.
+    hunting-duration-seconds: 90 # legacy setting, no longer used for automatic reset
     reset-to: 0
   enabled: true
   decay-rate: 1
@@ -146,13 +147,13 @@ herobrine:
     min-fear-to-appear: 30
     min-distance: 5.0
     max-distance: 8.0
-    # 20 tick = 1 secondo; 240 tick = 12 secondi. Vale per stalking e hunting automatici; modificabile.
+    # 300 tick = 15 secondi; stalking waits 1 extra second after despawn.
     check-interval-ticks: 300
     appearance-chance-percent: 25.0
     vanish-when-looked-at: true
     duration-seconds: 15
     contact:
-      effect-duration-ticks: 60 # 1 secondo di cecità e nausea
+      effect-duration-ticks: 60 # 3 secondi di cecità e nausea
       knockback-strength: 2.0 # Solo per Fear 30-64; 0.5x applicato alla velocità
     eye-jumpscare:
       enabled: true
@@ -162,7 +163,7 @@ herobrine:
       lightning-chance-percent: 20
 
   hunting:
-    appearance-interval-seconds: 15
+    appearance-interval-seconds: 15 # after each hunting disappearance; six actual appearances
   appearance:
     manifestation-smoke:
       enabled: true
@@ -232,8 +233,8 @@ soundscape:
     heartbeat: {enabled: true, sound: ENTITY_WARDEN_HEARTBEAT, volume: 0.6, pitch: 0.8}
     distant-breaking: {enabled: true, sound: BLOCK_STONE_BREAK, volume: 0.6, pitch: 0.55}
     cave: {enabled: true, sound: AMBIENT_CAVE, volume: 0.55, pitch: 0.7}
-    enderman-stare: {enabled: true, sound: ENTITY_ENDERMAN_SCREAM, volume: 0.5, pitch: 1.15}
+    enderman-stare: {enabled: true, sound: ENTITY_ENDERMAN_STARE, volume: 0.5, pitch: 0.64}
     wither: {enabled: true, sound: ENTITY_WITHER_AMBIENT, volume: 0.4, pitch: 0.65}
-    ghast: {enabled: true, sound: ENTITY_GHAST_SCREAM, volume: 0.35, pitch: 1.15}
-    phantom: {enabled: true, sound: ENTITY_PHANTOM_AMBIENT, volume: 0.5, pitch: 1.05}
+    ghast: {enabled: true, sound: ENTITY_GHAST_AMBIENT, volume: 0.35, pitch: 0.62}
+    phantom: {enabled: true, sound: ENTITY_PHANTOM_AMBIENT, volume: 0.5, pitch: 0.65}
     warden: {enabled: true, sound: ENTITY_WARDEN_AMBIENT, volume: 0.4, pitch: 0.85}

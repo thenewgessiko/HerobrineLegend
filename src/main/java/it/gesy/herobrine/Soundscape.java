@@ -25,8 +25,9 @@ public final class Soundscape {
             if (entry.getBoolean("randomize-entity-variants", true)) {
                 String[] variants = switch (key) {
                     case "phantom" -> new String[]{"ENTITY_PHANTOM_AMBIENT", "ENTITY_PHANTOM_FLAP", "ENTITY_PHANTOM_SWOOP"};
-                    case "ghast" -> new String[]{"ENTITY_GHAST_AMBIENT", "ENTITY_GHAST_WARN", "ENTITY_GHAST_SCREAM"};
+                    case "ghast" -> new String[]{"ENTITY_GHAST_AMBIENT"};
                     case "enderman-stare" -> new String[]{"ENTITY_ENDERMAN_STARE", "ENTITY_ENDERMAN_AMBIENT", "ENTITY_ENDERMAN_SCREAM"};
+                    case "heartbeat" -> new String[]{"ENTITY_WARDEN_HEARTBEAT", "ENTITY_WARDEN_AMBIENT", "ENTITY_WARDEN_NEARBY_CLOSE"};
                     case "warden" -> new String[]{"ENTITY_WARDEN_HEARTBEAT", "ENTITY_WARDEN_AMBIENT", "ENTITY_WARDEN_NEARBY_CLOSE"};
                     default -> new String[0];
                 };
@@ -36,7 +37,10 @@ public final class Soundscape {
                 }
             }
             float volume = (float) Math.max(0, Math.min(4, entry.getDouble("volume", 0.7)));
-            float pitch = (float) Math.max(0.5, Math.min(2, entry.getDouble("pitch", 0.75)));
+            // Low, subtly varied pitch to avoid identical repetitions.
+            double basePitch = entry.getDouble("pitch", 0.65);
+            float pitch = (float) Math.max(0.5, Math.min(0.90,
+                    basePitch + (random.nextDouble() - 0.5) * 0.16));
             player.playSound(location, sound, volume, pitch);
             return true;
         } catch (IllegalArgumentException e) {

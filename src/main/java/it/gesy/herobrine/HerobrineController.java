@@ -53,6 +53,10 @@ public final class HerobrineController implements Listener {
     private int modeTicks;
     private int modeDurationTicks;
     private int nextAttemptTicks;
+    // Independent absolute stalking clock: never restart at NPC despawn.
+    private long encounterClockTicks;
+    private long nextStalkingAttemptAt;
+    private boolean nextStalkingVanishLightning;
     private int attackCooldownTicks;
     private boolean forcedAttack;
     private int stalkingContactCooldown;
@@ -61,7 +65,9 @@ public final class HerobrineController implements Listener {
     private int jumpTicksRemaining;
     private double verticalVelocity;
     private UUID huntingTargetId;
-    private int lastHuntingSlot = -1;
+    private int completedHuntingAppearances;
+    private long nextHuntingAppearanceAt;
+    private boolean huntingAppearanceInProgress;
     private int jumpscareRushTicks;
 
     public HerobrineController(HerobrineLegendPlugin plugin, EncounterState state) {
@@ -82,6 +88,9 @@ public final class HerobrineController implements Listener {
 
     /** Called by the ritual manager so deactivation is visible immediately. */
     public void deactivateImmediately() {
+        huntingAppearanceInProgress = false;
+        huntingTargetId = null;
+        completedHuntingAppearances = 0;
         despawn();
         nextAttemptTicks = 0;
     }
@@ -148,35 +157,46 @@ public final class HerobrineController implements Listener {
     }
 
     private void tick() {
+        encounterClockTicks++;
+        long stalkingInterval = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
+        boolean stalkingSlot = encounterClockTicks >= nextStalkingAttemptAt;
         if (!state.isActive()) {
+            huntingAppearanceInProgress = false;
+            huntingTargetId = null;
+            completedHuntingAppearances = 0;
             if (npc != null) despawn();
-            nextAttemptTicks = 0;
+            nextStalkingAttemptAt = encounterClockTicks + 300;
             return;
         }
 
         if (npc == null) {
-            // Six slots at t=0,15,30,45,60,75 seconds of the active fear cycle.
+            // Six actual appearances, separated by fifteen seconds AFTER
+            // the previous disappearance. No fixed 90-second timeout.
             if (horrorManager != null && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (!horrorManager.isHunting(player) || player.isDead()) continue;
-                    int elapsed = horrorManager.huntingElapsedSeconds(player);
-                    int interval = Math.max(6, plugin.getConfig().getInt("herobrine.hunting.appearance-interval-seconds", 15));
-                    int slot = elapsed / interval;
-                    if (slot >= 6) continue;
-                    if (elapsed >= 0 && elapsed < plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 90)
-                            && (huntingTargetId == null || !huntingTargetId.equals(player.getUniqueId()) || slot != lastHuntingSlot)) {
+                    if (huntingTargetId == null || !huntingTargetId.equals(player.getUniqueId())) {
+                        huntingTargetId = player.getUniqueId();
+                        completedHuntingAppearances = 0;
+                        huntingAppearanceInProgress = false;
+                        nextHuntingAppearanceAt = encounterClockTicks;
+                    }
+                    if (completedHuntingAppearances < 6 && encounterClockTicks >= nextHuntingAppearanceAt) {
                         Location spawn = findSpawnLocation(player);
                         if (spawn != null) {
-                            huntingTargetId = player.getUniqueId();
-                            lastHuntingSlot = slot;
                             startHuntingEncounter(player, spawn);
-                            return;
+                            if (npc != null) {
+                                huntingAppearanceInProgress = true;
+                                return;
+                            }
                         }
                     }
+                    // One NPC at a time: never start stalking during hunting.
+                    return;
                 }
             }
-            if (nextAttemptTicks-- <= 0) {
-                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
+            if (stalkingSlot && (horrorManager == null || Bukkit.getOnlinePlayers().stream().noneMatch(horrorManager::isHunting))) {
+                nextStalkingAttemptAt = encounterClockTicks + stalkingInterval;
                 tryStartEncounter();
             }
             return;
@@ -184,6 +204,7 @@ public final class HerobrineController implements Listener {
 
         if (target == null || !target.isOnline() || target.isDead()
                 || !target.getWorld().equals(npcLocation.getWorld())) {
+            huntingAppearanceInProgress = false;
             despawn();
             nextAttemptTicks = 20;
             return;
@@ -228,7 +249,7 @@ public final class HerobrineController implements Listener {
             }
             if (modeTicks >= 20) {
                 despawn();
-                nextAttemptTicks = 40;
+                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
             }
             return;
         }
@@ -236,7 +257,7 @@ public final class HerobrineController implements Listener {
         if (mode == Mode.STALKING) {
             if (modeTicks >= Math.max(1, plugin.getConfig().getInt("herobrine.stalking.duration-seconds", 15)) * 20) {
                 despawn();
-                nextAttemptTicks = 40;
+                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
                 return;
             }
             faceTarget();
@@ -248,12 +269,10 @@ public final class HerobrineController implements Listener {
                 applyStalkingContactEffects(target, fear < 65);
                 Location impact = target.getLocation();
                 spawnOriginalVanishParticles(target.getWorld(), impact);
-                if (random.nextDouble() * 100.0 < plugin.getConfig().getDouble(
-                        "herobrine.stalking.despawn.lightning-chance-percent", 20.0))
-                    target.getWorld().strikeLightningEffect(impact);
+                playStalkingVanishLightning(target.getWorld(), impact);
                 target.damage(1.0);
                 despawn(false);
-                nextAttemptTicks = 40;
+                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
                 return;
             }
             if (plugin.getConfig().getBoolean("herobrine.stalking.vanish-when-looked-at", true)
@@ -269,7 +288,7 @@ public final class HerobrineController implements Listener {
                     target.getWorld().playSound(target.getLocation(), Sound.ENTITY_GHAST_SCREAM, 1.0f, 0.65f);
                 } else {
                     despawn();
-                    nextAttemptTicks = 40;
+                    nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
                 }
                 return;
             }
@@ -690,6 +709,13 @@ public final class HerobrineController implements Listener {
         npcLocation.getWorld().spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 1, 0), 3, .25, .65, .25, .01);
     }
 
+    private void playStalkingVanishLightning(World world, Location at) {
+        if (mode != Mode.STALKING && mode != Mode.STALKING_JUMPSCARE) return;
+        boolean lightning = nextStalkingVanishLightning;
+        nextStalkingVanishLightning = !nextStalkingVanishLightning;
+        if (lightning) world.strikeLightningEffect(at);
+    }
+
     private void playDespawnEffects() {
         if (npcLocation == null || mode == Mode.NONE) return;
         World world = npcLocation.getWorld();
@@ -700,9 +726,7 @@ public final class HerobrineController implements Listener {
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
         spawnOriginalVanishParticles(world, at);
-        boolean lightning = (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE) && random.nextDouble() * 100 <
-                plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 20);
-        if (lightning) world.strikeLightningEffect(at); // Rare visual-only addition; never replaces particles.
+        playStalkingVanishLightning(world, at);
     }
 
     private void spawnOriginalVanishParticles(World world, Location at) {
@@ -742,6 +766,24 @@ public final class HerobrineController implements Listener {
     private void despawn() { despawn(true); }
 
     private void despawn(boolean effects) {
+        if (npc != null && huntingAppearanceInProgress
+                && (mode == Mode.ATTACK_WINDUP || mode == Mode.ATTACKING)) {
+            huntingAppearanceInProgress = false;
+            completedHuntingAppearances++;
+            nextHuntingAppearanceAt = encounterClockTicks
+                    + Math.max(1, plugin.getConfig().getInt("herobrine.hunting.appearance-interval-seconds", 15)) * 20L;
+            if (completedHuntingAppearances >= 6 && horrorManager != null && target != null) {
+                horrorManager.finishHunting(target);
+                huntingTargetId = null;
+                completedHuntingAppearances = 0;
+            }
+        }
+        // A full one-second pause followed by fifteen seconds of stalking cooldown.
+        // Reset only for stalking; hunting retains its fixed six slots in 90 seconds.
+        if (npc != null && (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE)) {
+            nextStalkingAttemptAt = encounterClockTicks + 20L
+                    + Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
+        }
         if (npc != null && effects) playDespawnEffects();
         if (npc != null) npc.despawnAll();
         removeNameTeams();
