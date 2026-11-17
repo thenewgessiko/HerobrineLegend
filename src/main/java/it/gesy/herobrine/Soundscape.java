@@ -77,10 +77,9 @@ public final class Soundscape {
         return false;
     }
 
-    /** Fear 30-100: never select an entity sound at Herobrine's appearance. */
+    /** Fear 30-100: cave ambience only; ignore stale custom appearance pools. */
     public boolean playAppearanceEerie(Player player) {
-        return playFromPool(player, "soundscape.appearance.eerie-events",
-                List.of("cave", "spawn", "distant-breaking"));
+        return play(player, "cave", player.getLocation());
     }
 
     private boolean playFromPool(Player player, String path, List<String> defaults) {
