@@ -64,7 +64,7 @@ public final class HorrorManager {
 
     private void tick() {
         ticks++;
-        int duration = Math.max(1, plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 60));
+        int duration = Math.max(1, plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 90));
         if (plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
             for (UUID id : new HashSet<>(huntingStarted.keySet())) {
                 if (ticks - huntingStarted.get(id) >= duration) {

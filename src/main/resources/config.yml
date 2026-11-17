@@ -17,7 +17,7 @@ engine:
 fear:
   cycling:
     enabled: true
-    hunting-duration-seconds: 60
+    hunting-duration-seconds: 90
     reset-to: 0
   enabled: true
   decay-rate: 1
@@ -158,16 +158,18 @@ herobrine:
       enabled: true
       min-fear: 65
       max-fear: 99
-      chance-percent: 8.0
     despawn:
-      lightning-chance-percent: 5
+      lightning-chance-percent: 20
 
   hunting:
-    appearance-interval-seconds: 10
+    appearance-interval-seconds: 15
   appearance:
     manifestation-smoke:
       enabled: true
       duration-seconds: 3
+      around-herobrine-count: 2
+      ground-count-per-segment: 8
+      ground-width: 0.65
     # Il modello usato è un player NPC PacketEvents, non uno zombie.
     normal-player-arms: true
     skin:

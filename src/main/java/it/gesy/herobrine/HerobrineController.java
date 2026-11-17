@@ -155,14 +155,15 @@ public final class HerobrineController implements Listener {
         }
 
         if (npc == null) {
-            // Guaranteed slots at t=0,10,20,30,40,50 seconds of the active fear cycle.
+            // Six slots at t=0,15,30,45,60,75 seconds of the active fear cycle.
             if (horrorManager != null && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (!horrorManager.isHunting(player) || player.isDead()) continue;
                     int elapsed = horrorManager.huntingElapsedSeconds(player);
-                    int interval = Math.max(6, plugin.getConfig().getInt("herobrine.hunting.appearance-interval-seconds", 10));
+                    int interval = Math.max(6, plugin.getConfig().getInt("herobrine.hunting.appearance-interval-seconds", 15));
                     int slot = elapsed / interval;
-                    if (elapsed >= 0 && elapsed < plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 60)
+                    if (slot >= 6) continue;
+                    if (elapsed >= 0 && elapsed < plugin.getConfig().getInt("fear.cycling.hunting-duration-seconds", 90)
                             && (huntingTargetId == null || !huntingTargetId.equals(player.getUniqueId()) || slot != lastHuntingSlot)) {
                         Location spawn = findSpawnLocation(player);
                         if (spawn != null) {
@@ -241,7 +242,7 @@ public final class HerobrineController implements Listener {
                 Location impact = target.getLocation();
                 spawnOriginalVanishParticles(target.getWorld(), impact);
                 if (random.nextDouble() * 100.0 < plugin.getConfig().getDouble(
-                        "herobrine.stalking.despawn.lightning-chance-percent", 5.0))
+                        "herobrine.stalking.despawn.lightning-chance-percent", 20.0))
                     target.getWorld().strikeLightningEffect(impact);
                 target.damage(1.0);
                 despawn(false);
@@ -251,12 +252,10 @@ public final class HerobrineController implements Listener {
             if (plugin.getConfig().getBoolean("herobrine.stalking.vanish-when-looked-at", true)
                     && npcLocation.distanceSquared(target.getLocation()) > 4.0
                     && isTargetLookingAtHerobrine()) {
-                double chance = plugin.getConfig().getDouble("herobrine.stalking.eye-jumpscare.chance-percent", 8.0);
                 int fear = horrorManager == null ? 0 : horrorManager.getFear(target);
                 if (fear >= plugin.getConfig().getInt("herobrine.stalking.eye-jumpscare.min-fear", 65)
                         && fear <= plugin.getConfig().getInt("herobrine.stalking.eye-jumpscare.max-fear", 99)
-                        && plugin.getConfig().getBoolean("herobrine.stalking.eye-jumpscare.enabled", true)
-                        && random.nextDouble() * 100.0 < chance) {
+                        && plugin.getConfig().getBoolean("herobrine.stalking.eye-jumpscare.enabled", true)) {
                     mode = Mode.STALKING_JUMPSCARE;
                     modeTicks = 0;
                     jumpscareRushTicks = 20; // rush physically, without teleporting
@@ -538,17 +537,20 @@ public final class HerobrineController implements Listener {
                 && plugin.getConfig().getBoolean("combat.chase.auto-jump", true)
                 && horizontal.lengthSquared() > 0.00001) {
             Vector direction = horizontal.clone().normalize();
-            // Look ahead farther than one movement tick: the NPC must start
-            // rising BEFORE its body reaches the face of the ledge.
-            double lookAhead = Math.max(0.85, horizontal.length() + 0.55);
+            // Probe the next ledge at feet height. Do not require a completely
+            // clear NPC-sized box at the probe itself: the ledge intentionally
+            // occupies the lower half of that box.
+            double lookAhead = Math.max(0.65, horizontal.length() + 0.40);
             Location ahead = feet.clone().add(direction.multiply(lookAhead));
             Location nextStep = feet.clone().add(horizontal);
             boolean blocked = !hasRoom(ahead) || !hasRoom(nextStep);
-            // A 1-block obstacle has free space at feet+1, whereas a wall
-            // taller than one block cannot be jumped.
+            // The next floor is one block higher, with enough headroom above
+            // it. Probe the top surface rather than the solid obstacle body.
+            Location landing = ahead.clone().add(0, 1.0, 0);
             boolean oneBlockLedge = blocked
-                    && hasRoom(feet.clone().add(0, 1.01, 0))
-                    && hasRoom(ahead.clone().add(0, 1.01, 0));
+                    && !ahead.getBlock().isPassable()
+                    && hasRoom(landing)
+                    && hasRoom(feet.clone().add(0, 1.0, 0));
             if (oneBlockLedge) {
                 verticalVelocity = 0.52;
                 jumpTicksRemaining = 1;
@@ -645,12 +647,38 @@ public final class HerobrineController implements Listener {
     }
 
     private void emitManifestationSmoke() {
-        if (npcLocation == null || !plugin.getConfig().getBoolean("herobrine.appearance.manifestation-smoke.enabled", true)) return;
+        if (npcLocation == null || target == null || !plugin.getConfig().getBoolean("herobrine.appearance.manifestation-smoke.enabled", true)) return;
         int duration = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.duration-seconds", 3)) * 20;
-        if (modeTicks > duration) return;
-        if (modeTicks % 2 != 0) return;
-        npcLocation.getWorld().spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 0.95, 0),
-                5, 0.4, 0.85, 0.4, 0.005);
+        if (modeTicks > duration || modeTicks % 2 != 0) return;
+        World world = npcLocation.getWorld();
+        int around = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.around-herobrine-count", 2));
+        if (around > 0) world.spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 0.9, 0), around, 0.28, 0.65, 0.28, 0.003);
+
+        // Ground-level smoke corridor between the player and the apparition.
+        // Sample the surface under each point so slopes remain visible.
+        Location playerPos = target.getLocation();
+        if (!world.equals(playerPos.getWorld())) return;
+        Vector delta = npcLocation.toVector().subtract(playerPos.toVector());
+        double distance = Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ());
+        if (distance < 0.2) return;
+        int segments = Math.max(1, (int) Math.ceil(distance * 2));
+        int density = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.ground-count-per-segment", 8));
+        double width = Math.max(0, plugin.getConfig().getDouble("herobrine.appearance.manifestation-smoke.ground-width", 0.65));
+        for (int i = 0; i <= segments; i++) {
+            double t = (double) i / segments;
+            double x = playerPos.getX() + delta.getX() * t;
+            double z = playerPos.getZ() + delta.getZ() * t;
+            double interpolatedY = playerPos.getY() + (npcLocation.getY() - playerPos.getY()) * t;
+            Location ground = new Location(world, x, interpolatedY, z);
+            // Only render smoke where a solid surface is immediately below.
+            for (int depth = 0; depth <= 3; depth++) {
+                Location sample = ground.clone().subtract(0, depth, 0);
+                if (sample.clone().subtract(0, 0.25, 0).getBlock().getType().isSolid()) {
+                    if (density > 0) world.spawnParticle(Particle.SMOKE, sample.add(0, 0.18, 0), density, width, 0.08, width, 0.003);
+                    break;
+                }
+            }
+        }
     }
 
     private void emitPresenceParticles() {
@@ -664,12 +692,12 @@ public final class HerobrineController implements Listener {
         Location at = npcLocation.clone();
         for (Player viewer : Bukkit.getOnlinePlayers()) {
             if (!viewer.getWorld().equals(world) || viewer.getLocation().distanceSquared(at) > 48 * 48) continue;
-            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.65f);
+            viewer.playSound(at, Sound.ENTITY_ENDERMAN_STARE, 1.0f, 0.60f);
             viewer.playSound(at, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.55f);
         }
         spawnOriginalVanishParticles(world, at);
         boolean lightning = (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE) && random.nextDouble() * 100 <
-                plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 5);
+                plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 20);
         if (lightning) world.strikeLightningEffect(at); // Rare visual-only addition; never replaces particles.
     }
 
