@@ -70,6 +70,7 @@ public final class RitualManager implements Listener {
                     // Visual lightning only: do not accidentally burn nearby builds.
                     below.getWorld().strikeLightningEffect(below.getLocation().add(0.5, 1, 0.5));
                     flame.setType(Material.FIRE);
+                    playRitualEffects(below.getLocation().add(0.5, 1, 0.5), true);
                     consumeOne(item);
                     player.sendMessage(ChatColor.DARK_PURPLE + "Qualcosa ha risposto al richiamo... Herobrine è stato evocato.");
                     plugin.getLogger().info("Ritual activated at " + center.getWorld().getName() + " " + center.getX() + "," + center.getY() + "," + center.getZ());
@@ -85,6 +86,7 @@ public final class RitualManager implements Listener {
                         player.sendMessage(ChatColor.RED + "Spegni prima la fiamma sulla netherrack.");
                         return;
                     }
+                    playRitualEffects(below.getLocation().add(0.5, 1, 0.5), false);
                     state.deactivate();
                     controller.deactivateImmediately();
                     consumeOne(item);
@@ -94,6 +96,40 @@ public final class RitualManager implements Listener {
                 }, Math.max(1L, plugin.getConfig().getLong("ritual.transition-delay-ticks", 20L)));
             }
         }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    /** Particle/sound choices reconstructed from the original 1.8 ritual bytecode. */
+    private void playRitualEffects(Location at, boolean summon) {
+        org.bukkit.World world = at.getWorld();
+        if (world == null) return;
+        if (summon) {
+            world.playSound(at, Sound.ENTITY_WARDEN_HEARTBEAT, 2f, .5f);
+            world.playSound(at, Sound.ENTITY_ELDER_GUARDIAN_CURSE, 1.5f, .7f);
+            world.playSound(at, Sound.AMBIENT_SOUL_SAND_VALLEY_MOOD, 2f, .5f);
+        } else {
+            world.playSound(at, Sound.BLOCK_BEACON_ACTIVATE, 2f, 1.5f);
+            world.playSound(at, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.5f, .8f);
+        }
+        new BukkitRunnable() {
+            int tick = 0;
+            @Override public void run() {
+                if (tick >= (summon ? 60 : 8)) { cancel(); return; }
+                if (summon) {
+                    double angle = tick * .3, radius = 2.0 - tick / 30.0;
+                    Location point = at.clone().add(Math.cos(angle) * radius, tick * .05, Math.sin(angle) * radius);
+                    world.spawnParticle(Particle.SOUL, point, 3, .1, .1, .1, .01);
+                    world.spawnParticle(Particle.SOUL_FIRE_FLAME, point, 1, .1, .1, .1, .01);
+                } else {
+                    for (int i = 0; i < 8; i++) {
+                        double angle = Math.PI / 4 * i;
+                        Location point = at.clone().add(Math.cos(angle), 0, Math.sin(angle));
+                        world.spawnParticle(Particle.END_ROD, point, 2, .1, .2, .1, .02);
+                        world.spawnParticle(Particle.ENCHANT, point, 5, .2, .3, .2, .1);
+                    }
+                }
+                tick++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     private boolean isRitualComplete(Block center) {

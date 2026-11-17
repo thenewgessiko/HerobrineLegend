@@ -16,11 +16,15 @@ import org.bukkit.World;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
+import org.bukkit.scoreboard.Team;
+import org.bukkit.scoreboard.Scoreboard;
 import net.kyori.adventure.text.Component;
 
 import java.util.ArrayList;
@@ -31,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /** Drives the client-side player NPC and the first stalking/attack behaviour. */
 public final class HerobrineController implements Listener {
-    private enum Mode { NONE, STALKING, ATTACKING }
+    private enum Mode { NONE, STALKING, ATTACK_WINDUP, ATTACKING }
 
     private static final AtomicInteger ENTITY_IDS = new AtomicInteger(1_500_000_000);
     private static final int ATTACK_DURATION_TICKS = 5 * 20;
@@ -51,6 +55,12 @@ public final class HerobrineController implements Listener {
     private int nextAttemptTicks;
     private int attackCooldownTicks;
     private boolean forcedAttack;
+    private int stalkingContactCooldown;
+    private String npcProfileName;
+    private String npcTeamName;
+    private int jumpTicksRemaining;
+    private double jumpStartY;
+    private double jumpEndY;
 
     public HerobrineController(HerobrineLegendPlugin plugin, EncounterState state) {
         this.plugin = plugin;
@@ -100,7 +110,7 @@ public final class HerobrineController implements Listener {
         despawn();
         target = player;
         npcLocation = spawn;
-        mode = Mode.ATTACKING;
+        mode = Mode.ATTACK_WINDUP;
         forcedAttack = true;
         modeTicks = 0;
         modeDurationTicks = ATTACK_DURATION_TICKS;
@@ -159,17 +169,38 @@ public final class HerobrineController implements Listener {
 
         updateViewers();
         modeTicks++;
+        if (stalkingContactCooldown > 0) stalkingContactCooldown--;
 
         if (mode == Mode.STALKING) {
             faceTarget();
             emitPresenceParticles();
+            if (npcLocation.distanceSquared(target.getLocation()) <= 2.25 && stalkingContactCooldown == 0) {
+                stalkingContactCooldown = 60;
+                target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 50, 0, false, false, true));
+                target.getWorld().strikeLightningEffect(target.getLocation());
+                target.setHealth(Math.max(0.0, target.getHealth() - 1.0)); // exactly half a heart, regardless of armor
+                despawn(false);
+                nextAttemptTicks = 40;
+                return;
+            }
             if (plugin.getConfig().getBoolean("herobrine.stalking.vanish-when-looked-at", true)
+                    && npcLocation.distanceSquared(target.getLocation()) > 4.0
                     && isTargetLookingAtHerobrine()) {
                 despawn();
                 nextAttemptTicks = 40;
                 return;
             }
             // Stalking ends only on player gaze, altar deactivation, or invalid target.
+            return;
+        }
+
+        if (mode == Mode.ATTACK_WINDUP) {
+            faceTarget();
+            emitPresenceParticles();
+            if (modeTicks >= 20) {
+                mode = Mode.ATTACKING;
+                modeTicks = 0;
+            }
             return;
         }
 
@@ -210,7 +241,7 @@ public final class HerobrineController implements Listener {
         boolean stalkingEnabled = plugin.getConfig().getBoolean("herobrine.stalking.enabled", true);
         boolean mayAttack = plugin.getConfig().getBoolean("combat.enabled", true) && horrorManager != null && horrorManager.isHostile(target);
         mode = mayAttack && random.nextDouble() * 100.0 < attackChance
-                ? Mode.ATTACKING : Mode.STALKING;
+                ? Mode.ATTACK_WINDUP : Mode.STALKING;
         modeTicks = 0;
         modeDurationTicks = mode == Mode.STALKING ? randomBetween(100, 160)
                 : ATTACK_DURATION_TICKS;
@@ -226,7 +257,7 @@ public final class HerobrineController implements Listener {
         createNpc(spawn);
         if (npc == null) return;
         updateViewers();
-        if (horrorManager != null) horrorManager.onEncounter(target, mode == Mode.ATTACKING);
+        if (horrorManager != null) horrorManager.onEncounter(target, mode == Mode.ATTACK_WINDUP);
         plugin.getLogger().info("Herobrine encounter started: " + mode + " near " + target.getName());
     }
 
@@ -265,9 +296,11 @@ public final class HerobrineController implements Listener {
             return;
         }
         UUID profileId = UUID.randomUUID();
-        UserProfile profile = new UserProfile(profileId, "Herobrine",
+        npcProfileName = "HB" + profileId.toString().replace("-", "").substring(0, 12);
+        npcTeamName = "hb" + profileId.toString().replace("-", "").substring(0, 12);
+        UserProfile profile = new UserProfile(profileId, npcProfileName,
                 List.of(new TextureProperty("textures", texture, signature == null || signature.isBlank() ? null : signature)));
-        npc = new NPC(profile, ENTITY_IDS.getAndIncrement(), GameMode.SURVIVAL, Component.text("Herobrine"), null, null, null);
+        npc = new NPC(profile, ENTITY_IDS.getAndIncrement(), GameMode.SURVIVAL, Component.empty(), null, null, null);
         npc.setLocation(toPacketLocation(location));
     }
 
@@ -277,11 +310,33 @@ public final class HerobrineController implements Listener {
             Object channel = PacketEvents.getAPI().getPlayerManager().getChannel(viewer);
             if (channel == null) continue;
             if (viewer.getWorld().equals(npcLocation.getWorld())) {
-                if (!npc.hasSpawned(channel)) npc.spawn(channel);
+                if (!npc.hasSpawned(channel)) {
+                    hideNameFor(viewer);
+                    npc.spawn(channel);
+                }
             } else if (npc.hasSpawned(channel)) {
                 npc.despawn(channel);
             }
         }
+    }
+
+    private void hideNameFor(Player viewer) {
+        if (npcProfileName == null || npcTeamName == null) return;
+        Scoreboard board = viewer.getScoreboard();
+        Team team = board.getTeam(npcTeamName);
+        if (team == null) team = board.registerNewTeam(npcTeamName);
+        team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+        team.addEntry(npcProfileName);
+    }
+
+    private void removeNameTeams() {
+        if (npcTeamName == null) return;
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            Team team = viewer.getScoreboard().getTeam(npcTeamName);
+            if (team != null) team.unregister();
+        }
+        npcTeamName = null;
+        npcProfileName = null;
     }
 
     private void faceTarget() {
@@ -304,7 +359,10 @@ public final class HerobrineController implements Listener {
         if (distance > 0.001) {
             // Client relative-move packets have limited delta range; keep each step small.
             double speed = Math.min(0.9, Math.max(0.05, plugin.getConfig().getDouble("combat.chase.speed-blocks-per-tick", 0.28)));
-            Vector step = delta.normalize().multiply(Math.min(speed, distance));
+            // Horizontal steering: the target's vertical position must not steal jump speed.
+            Vector horizontal = new Vector(delta.getX(), 0, delta.getZ());
+            Vector step = horizontal.lengthSquared() < 0.0001 ? new Vector(0, 0, 0)
+                    : horizontal.normalize().multiply(Math.min(speed, Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ())));
             Location next = resolveCollision(npcLocation, step);
             if (next.distanceSquared(npcLocation) < 0.000001) return;
             next.setYaw(yawToward(next, targetLocation));
@@ -324,34 +382,49 @@ public final class HerobrineController implements Listener {
         }
     }
 
-    /**
-     * A one-block step-up for the packet-only NPC. The client NPC has no server-side
-     * entity physics, so we explicitly check headroom and supporting blocks.
-     * This is obstacle stepping, NOT full navigation/pathfinding.
-     */
+    /** Client-side NPCs have no Bukkit physics. Walk the jump arc in small packet steps. */
     private Location resolveCollision(Location origin, Vector motion) {
-        double dx = motion.getX();
-        double dz = motion.getZ();
-        Location forward = origin.clone().add(dx, 0, dz);
+        Location forward = origin.clone().add(motion.getX(), 0, motion.getZ());
+        if (jumpTicksRemaining > 0) {
+            int elapsed = 6 - jumpTicksRemaining + 1;
+            double progress = elapsed / 6.0;
+            double desiredY = jumpStartY + (jumpEndY - jumpStartY) * progress
+                    + Math.sin(Math.PI * progress) * 0.42;
+            Location candidate = forward.clone();
+            candidate.setY(desiredY);
+            if (!hasRoom(candidate)) {
+                candidate = origin.clone();
+                candidate.setY(desiredY);
+            }
+            if (!hasRoom(candidate)) return origin.clone();
+            jumpTicksRemaining--;
+            if (jumpTicksRemaining == 0) {
+                candidate.setY(jumpEndY);
+                if (!hasRoom(candidate) || !hasSupport(candidate)) return origin.clone();
+            }
+            return candidate;
+        }
         if (hasRoom(forward) && hasSupport(forward)) return forward;
 
-        // A jump must be attempted before sliding sideways: the previous version
-        // frequently stopped at a one-block obstacle or slid along its face.
         if (plugin.getConfig().getBoolean("combat.chase.auto-jump", true)) {
-            Location jumped = forward.clone().add(0, 1, 0);
-            Location aboveOrigin = origin.clone().add(0, 1, 0);
-            if (hasRoom(aboveOrigin) && hasRoom(jumped) && hasSupport(jumped)) {
-                return jumped;
+            // Detect the obstructing block at the NPC's feet; the landing area
+            // must have a solid floor exactly one block above the old floor.
+            Location landing = forward.clone().add(0, 1, 0);
+            Location launch = origin.clone().add(0, 0.55, 0);
+            Location overhead = origin.clone().add(0, 1, 0);
+            if (hasRoom(launch) && hasRoom(overhead) && hasRoom(landing)
+                    && hasSupport(landing) && !hasRoom(forward)) {
+                jumpStartY = origin.getY();
+                jumpEndY = landing.getY();
+                jumpTicksRemaining = 6;
+                return resolveCollision(origin, motion);
             }
         }
 
-        // Slide along a wall if possible, rather than clipping through it.
-        Location alongX = origin.clone().add(dx, 0, 0);
-        Location alongZ = origin.clone().add(0, 0, dz);
+        Location alongX = origin.clone().add(motion.getX(), 0, 0);
+        Location alongZ = origin.clone().add(0, 0, motion.getZ());
         if (hasRoom(alongX) && hasSupport(alongX)) return alongX;
         if (hasRoom(alongZ) && hasSupport(alongZ)) return alongZ;
-
-        // Gravity for a ledge; descend only through clear space.
         if (hasRoom(forward)) {
             Location down = forward.clone().subtract(0, 1, 0);
             if (hasRoom(down) && hasSupport(down)) return down;
@@ -398,7 +471,16 @@ public final class HerobrineController implements Listener {
         boolean lightning = mode == Mode.STALKING && random.nextDouble() * 100 <
                 plugin.getConfig().getDouble("herobrine.stalking.despawn.lightning-chance-percent", 25);
         if (lightning) world.strikeLightningEffect(at); // visual only: no fire
-        else world.spawnParticle(Particle.PORTAL, at.clone().add(0, 1, 0), 55, .4, .8, .4, .15);
+        else spawnOriginalVanishParticles(world, at);
+    }
+
+    private void spawnOriginalVanishParticles(World world, Location at) {
+        // Soul/enchanted spectral burst, matching the original 1.8 particle family.
+        Location center = at.clone().add(0, 1, 0);
+        world.spawnParticle(Particle.SOUL, center, 42, .42, .75, .42, .045);
+        world.spawnParticle(Particle.SOUL_FIRE_FLAME, center, 28, .35, .7, .35, .025);
+        world.spawnParticle(Particle.END_ROD, center, 16, .3, .6, .3, .035);
+        world.spawnParticle(Particle.ENCHANT, center, 35, .5, .8, .5, .12);
     }
 
     /** Sends native relative movement packets so the player model animates while running. */
@@ -426,9 +508,13 @@ public final class HerobrineController implements Listener {
         }
     }
 
-    private void despawn() {
-        if (npc != null) playDespawnEffects();
+    private void despawn() { despawn(true); }
+
+    private void despawn(boolean effects) {
+        if (npc != null && effects) playDespawnEffects();
         if (npc != null) npc.despawnAll();
+        removeNameTeams();
+        jumpTicksRemaining = 0;
         npc = null;
         target = null;
         npcLocation = null;
