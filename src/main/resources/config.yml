@@ -88,7 +88,7 @@ horror:
     spawn-sound: true
     spawn-particles: true
   hallucinations:
-    interval-seconds: 10
+    interval-seconds: 15
     chance-percent: 20.0
     phantom-footsteps: true
     heartbeat: true
@@ -147,12 +147,12 @@ herobrine:
     min-distance: 5.0
     max-distance: 8.0
     # 20 tick = 1 secondo; 240 tick = 12 secondi. Vale per stalking e hunting automatici; modificabile.
-    check-interval-ticks: 240
+    check-interval-ticks: 300
     appearance-chance-percent: 25.0
     vanish-when-looked-at: true
     duration-seconds: 15
     contact:
-      effect-duration-ticks: 20 # 1 secondo di cecità e nausea
+      effect-duration-ticks: 60 # 1 secondo di cecità e nausea
       knockback-strength: 2.0 # Solo per Fear 30-64; 0.5x applicato alla velocità
     eye-jumpscare:
       enabled: true
@@ -167,6 +167,7 @@ herobrine:
     manifestation-smoke:
       enabled: true
       duration-seconds: 3
+      hunting-duration-seconds: 1
       around-herobrine-count: 2
       ground-particle-count: 65
       ground-radius: 5.0
@@ -222,9 +223,9 @@ combat:
 soundscape:
   enabled: true
   ambient:
-    interval-seconds: 10
+    interval-seconds: 15
     chance-percent: 75.0
-    events: [cave, enderman-stare, ghast, phantom, warden, heartbeat, footsteps]
+    events: [cave, cave, cave, enderman-stare, ghast, phantom, warden, heartbeat, footsteps]
   events:
     spawn: {enabled: true, sound: AMBIENT_CAVE, volume: 0.65, pitch: 0.65}
     footsteps: {enabled: true, sound: BLOCK_STONE_STEP, volume: 0.7, pitch: 0.7}

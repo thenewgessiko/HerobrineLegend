@@ -176,7 +176,7 @@ public final class HerobrineController implements Listener {
                 }
             }
             if (nextAttemptTicks-- <= 0) {
-                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 240));
+                nextAttemptTicks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));
                 tryStartEncounter();
             }
             return;
@@ -206,17 +206,24 @@ public final class HerobrineController implements Listener {
         if (mode == Mode.STALKING_JUMPSCARE) {
             faceTarget();
             emitPresenceParticles();
+            // Instant face-to-face jumpscare, not a walking chase.
             if (jumpscareRushTicks > 0) {
-                jumpscareRushTicks--;
-                chaseTargetWithoutDamage();
-                if (npcLocation.distanceSquared(target.getLocation()) <= 2.25) {
-                    target.damage(1.0);
-                    applyStalkingContactEffects(target, false);
-                    jumpscareRushTicks = 0;
-                    modeTicks = 0;
-                } else if (jumpscareRushTicks == 0) {
-                    despawn();
-                }
+                jumpscareRushTicks = 0;
+                Location playerFeet = target.getLocation();
+                Vector facing = playerFeet.getDirection().setY(0);
+                if (facing.lengthSquared() < 0.001) facing = new Vector(0, 0, 1);
+                Location close = playerFeet.clone().add(facing.normalize().multiply(1.0));
+                if (!hasRoom(close)) close = playerFeet.clone();
+                close.setYaw(yawToward(close, target.getEyeLocation()));
+                close.setPitch(0);
+                npcLocation = close;
+                npc.setLocation(toPacketLocation(close));
+                npc.despawnAll();
+                updateViewers();
+                faceTarget();
+                target.damage(1.0);
+                applyStalkingContactEffects(target, false);
+                modeTicks = 0;
                 return;
             }
             if (modeTicks >= 20) {
@@ -258,7 +265,7 @@ public final class HerobrineController implements Listener {
                         && plugin.getConfig().getBoolean("herobrine.stalking.eye-jumpscare.enabled", true)) {
                     mode = Mode.STALKING_JUMPSCARE;
                     modeTicks = 0;
-                    jumpscareRushTicks = 20; // rush physically, without teleporting
+                    jumpscareRushTicks = 1; // instant face-to-face teleport
                     target.getWorld().playSound(target.getLocation(), Sound.ENTITY_GHAST_SCREAM, 1.0f, 0.65f);
                 } else {
                     despawn();
@@ -537,15 +544,16 @@ public final class HerobrineController implements Listener {
                 && plugin.getConfig().getBoolean("combat.chase.auto-jump", true)
                 && horizontal.lengthSquared() > 0.00001) {
             Vector direction = horizontal.clone().normalize();
-            // Look roughly one full block ahead of the NPC collision body.
-            // Scan multiple distances because the nearest probe may still be
-            // air while the far probe already intersects the obstacle.
+            // Anticipate a raised floor by at least one block before contact.
+            // Detect the actual solid foot-level block, not only a full-body
+            // collision (which may miss the ledge at fractional positions).
             boolean oneBlockLedge = false;
-            for (double distance = 0.9; distance <= 1.8; distance += 0.3) {
+            for (double distance = 1.0; distance <= 2.0; distance += 0.20) {
                 Location probe = feet.clone().add(direction.clone().multiply(distance));
-                // The obstacle can be at any of the feet-level sample corners.
-                if (!hasRoom(probe)
-                        && hasRoom(probe.clone().add(0, 1.01, 0))
+                Location footBlock = probe.clone().add(0, 0.10, 0);
+                Location landing = probe.clone().add(0, 1.01, 0);
+                if (!footBlock.getBlock().isPassable()
+                        && hasRoom(landing)
                         && hasRoom(feet.clone().add(0, 1.01, 0))) {
                     oneBlockLedge = true;
                     break;
@@ -633,7 +641,7 @@ public final class HerobrineController implements Listener {
     }
 
     private void applyStalkingContactEffects(Player player, boolean knockbackEnabled) {
-        int ticks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.contact.effect-duration-ticks", 20));
+        int ticks = Math.max(1, plugin.getConfig().getInt("herobrine.stalking.contact.effect-duration-ticks", 60));
         player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, ticks, 0, false, false, true));
         player.addPotionEffect(new PotionEffect(PotionEffectType.NAUSEA, ticks, 0, false, false, true));
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_GHAST_SCREAM, 1.1f, 0.55f);
@@ -652,7 +660,9 @@ public final class HerobrineController implements Listener {
         // Hunting smoke follows the moving NPC for the whole pursuit; stalking
         // smoke lasts only the configured manifestation period.
         boolean hunting = mode == Mode.ATTACK_WINDUP || mode == Mode.ATTACKING;
-        if (!hunting && modeTicks > duration) return;
+        if (hunting) duration = Math.max(0, plugin.getConfig().getInt(
+                "herobrine.appearance.manifestation-smoke.hunting-duration-seconds", 1)) * 20;
+        if (modeTicks > duration) return;
         if (modeTicks % 2 != 0) return;
         World world = npcLocation.getWorld();
         int around = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.around-herobrine-count", 2));

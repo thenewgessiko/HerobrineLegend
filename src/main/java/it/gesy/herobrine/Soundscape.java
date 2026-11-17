@@ -20,6 +20,21 @@ public final class Soundscape {
         String name = entry.getString("sound", "AMBIENT_CAVE");
         try {
             Sound sound = Sound.valueOf(name);
+            // Vary related sounds from the same creature, preserving the
+            // configured sound as the fallback.
+            if (entry.getBoolean("randomize-entity-variants", true)) {
+                String[] variants = switch (key) {
+                    case "phantom" -> new String[]{"ENTITY_PHANTOM_AMBIENT", "ENTITY_PHANTOM_FLAP", "ENTITY_PHANTOM_SWOOP"};
+                    case "ghast" -> new String[]{"ENTITY_GHAST_AMBIENT", "ENTITY_GHAST_WARN", "ENTITY_GHAST_SCREAM"};
+                    case "enderman-stare" -> new String[]{"ENTITY_ENDERMAN_STARE", "ENTITY_ENDERMAN_AMBIENT", "ENTITY_ENDERMAN_SCREAM"};
+                    case "warden" -> new String[]{"ENTITY_WARDEN_HEARTBEAT", "ENTITY_WARDEN_AMBIENT", "ENTITY_WARDEN_NEARBY_CLOSE"};
+                    default -> new String[0];
+                };
+                if (variants.length > 0) {
+                    try { sound = Sound.valueOf(variants[random.nextInt(variants.length)]); }
+                    catch (IllegalArgumentException ignored) { /* use configured sound */ }
+                }
+            }
             float volume = (float) Math.max(0, Math.min(4, entry.getDouble("volume", 0.7)));
             float pitch = (float) Math.max(0.5, Math.min(2, entry.getDouble("pitch", 0.75)));
             player.playSound(location, sound, volume, pitch);

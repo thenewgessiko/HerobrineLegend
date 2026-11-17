@@ -83,8 +83,8 @@ public final class HorrorManager {
         Location anchor = state.getAnchor();
         if (anchor == null || anchor.getWorld() == null) return;
         // Independent ambient loop: never gate sounds behind the hallucination roll.
-        int audioInterval = Math.max(1, plugin.getConfig().getInt("soundscape.ambient.interval-seconds", 10));
-        int hallucinationInterval = Math.max(1, plugin.getConfig().getInt("horror.hallucinations.interval-seconds", 10));
+        int audioInterval = Math.max(1, plugin.getConfig().getInt("soundscape.ambient.interval-seconds", 15));
+        int hallucinationInterval = Math.max(1, plugin.getConfig().getInt("horror.hallucinations.interval-seconds", 15));
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()
                     || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
