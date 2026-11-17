@@ -25,10 +25,12 @@ public final class HorrorManager {
     private final Set<UUID> hostile = new HashSet<>();
     private BukkitTask task;
     private int ticks;
+    private final Soundscape soundscape;
 
     public HorrorManager(HerobrineLegendPlugin plugin, EncounterState state) {
         this.plugin = plugin;
         this.state = state;
+        this.soundscape = new Soundscape(plugin);
     }
 
     public void start() {
@@ -51,7 +53,7 @@ public final class HorrorManager {
         addFear(player, plugin.getConfig().getInt("horror.fear.triggers.see-herobrine", 15)
                 + (attacking ? plugin.getConfig().getInt("horror.fear.triggers.attack", 20) : 0));
         if (plugin.getConfig().getBoolean("horror.effects.spawn-sound", true))
-            player.playSound(player.getLocation(), Sound.AMBIENT_CAVE, 0.65f, 0.65f);
+            soundscape.play(player, "spawn", player.getLocation());
         if (plugin.getConfig().getBoolean("horror.effects.spawn-particles", true))
             player.spawnParticle(Particle.SMOKE, player.getLocation().add(0, 1, 0), 12, .6, .7, .6, .01);
     }
@@ -74,6 +76,8 @@ public final class HorrorManager {
             int level = fear.getOrDefault(player.getUniqueId(), 0);
             if (random.nextDouble() * 100 >= Math.min(100, chance + level * .25)) continue;
             playHallucination(player);
+            if (random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 20.0))
+                soundscape.playRandomAmbient(player);
         }
     }
 
@@ -82,13 +86,13 @@ public final class HorrorManager {
         int effect = random.nextInt(4);
         if (effect == 0 && plugin.getConfig().getBoolean("horror.hallucinations.phantom-footsteps", true)) {
             Location nearby = at.clone().add(random.nextInt(9) - 4, 0, random.nextInt(9) - 4);
-            player.playSound(nearby, Sound.BLOCK_STONE_STEP, 0.7f, 0.7f);
+            soundscape.play(player, "footsteps", nearby);
         } else if (effect == 1 && plugin.getConfig().getBoolean("horror.hallucinations.heartbeat", true)) {
-            player.playSound(at, Sound.ENTITY_WARDEN_HEARTBEAT, 0.6f, 0.8f);
+            soundscape.play(player, "heartbeat", at);
         } else if (effect == 2 && plugin.getConfig().getBoolean("horror.hallucinations.breath-effect", true)) {
             player.spawnParticle(Particle.CLOUD, at.clone().add(0, 1.5, 0), 8, .25, .15, .25, .01);
         } else if (effect == 3 && plugin.getConfig().getBoolean("horror.hallucinations.distant-sounds", true)) {
-            player.playSound(at.clone().add(6, 0, 6), Sound.BLOCK_STONE_BREAK, 0.6f, 0.55f);
+            soundscape.play(player, "distant-breaking", at.clone().add(6, 0, 6));
         } else return;
         addFear(player, plugin.getConfig().getInt("horror.fear.triggers.hallucination", 5));
         int level = fear.getOrDefault(player.getUniqueId(), 0);
@@ -105,13 +109,22 @@ public final class HorrorManager {
         int current = fear.merge(player.getUniqueId(), Math.max(0, amount), (a,b) -> Math.min(max, a+b));
         updateHostility(player.getUniqueId(), current);
     }
+    public int getFear(Player player) { return fear.getOrDefault(player.getUniqueId(), 0); }
+
+    public void setFear(Player player, int level) {
+        int max = Math.max(1, plugin.getConfig().getInt("fear.max-level", 100));
+        int clamped = Math.max(0, Math.min(max, level));
+        fear.put(player.getUniqueId(), clamped);
+        updateHostility(player.getUniqueId(), clamped);
+    }
+
     public boolean isHostile(Player player) {
         return player != null && hostile.contains(player.getUniqueId());
     }
 
     private void updateHostility(UUID id, int level) {
-        int start = plugin.getConfig().getInt("herobrine.combat.hostile-at-fear", 100);
-        int stop = plugin.getConfig().getInt("herobrine.combat.calm-below-fear", 70);
+        int start = plugin.getConfig().getInt("combat.fear.activate-at", 100);
+        int stop = plugin.getConfig().getInt("combat.fear.deactivate-below", 70);
         if (level >= start) hostile.add(id);
         else if (level < stop) hostile.remove(id);
     }

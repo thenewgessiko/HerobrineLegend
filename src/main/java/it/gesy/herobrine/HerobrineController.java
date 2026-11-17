@@ -48,6 +48,7 @@ public final class HerobrineController implements Listener {
     private int modeDurationTicks;
     private int nextAttemptTicks;
     private int attackCooldownTicks;
+    private boolean forcedAttack;
 
     public HerobrineController(HerobrineLegendPlugin plugin, EncounterState state) {
         this.plugin = plugin;
@@ -86,6 +87,50 @@ public final class HerobrineController implements Listener {
             despawn();
             nextAttemptTicks = 20;
         }
+    }
+
+    /** Forces a five-second attack regardless of fear, but only while the altar is active. */
+    public boolean forceAttack(Player player) {
+        if (!state.isActive() || player == null || !player.isOnline() || player.isDead()
+                || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) return false;
+        Location spawn = findSpawnLocation(player);
+        if (spawn == null) return false;
+        despawn();
+        target = player;
+        npcLocation = spawn;
+        mode = Mode.ATTACKING;
+        forcedAttack = true;
+        modeTicks = 0;
+        modeDurationTicks = ATTACK_DURATION_TICKS;
+        attackCooldownTicks = 0;
+        createNpc(spawn);
+        if (npc == null) {
+            despawn();
+            return false;
+        }
+        updateViewers();
+        plugin.getLogger().info("Forced Herobrine attack on " + player.getName());
+        return true;
+    }
+
+    /** Forced visual encounter; requires an active altar and does not modify fear. */
+    public boolean forceJumpscare(Player player) {
+        if (!state.isActive() || player == null || !player.isOnline() || player.isDead()
+                || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) return false;
+        Location spawn = findSpawnLocation(player);
+        if (spawn == null) return false;
+        despawn();
+        target = player;
+        npcLocation = spawn;
+        mode = Mode.STALKING;
+        forcedAttack = false;
+        modeTicks = 0;
+        modeDurationTicks = 100;
+        createNpc(spawn);
+        if (npc == null) { despawn(); return false; }
+        updateViewers();
+        plugin.getLogger().info("Forced Herobrine jumpscare on " + player.getName());
+        return true;
     }
 
     private void tick() {
@@ -129,13 +174,14 @@ public final class HerobrineController implements Listener {
         }
 
         if (mode == Mode.ATTACKING) {
-            if (horrorManager == null || !horrorManager.isHostile(target)) {
-                despawn();
-                nextAttemptTicks = 40;
+            if (!forcedAttack && (horrorManager == null || !horrorManager.isHostile(target))) {
+                mode = Mode.STALKING;
+                modeTicks = 0;
+                modeDurationTicks = randomBetween(100, 160);
                 return;
             }
             chaseTarget();
-            if (modeTicks >= ATTACK_DURATION_TICKS) {
+            if (modeTicks >= Math.max(1, plugin.getConfig().getInt("combat.chase.duration-seconds", 5) * 20)) {
                 despawn();
                 nextAttemptTicks = randomBetween(40, 100);
             }
@@ -157,9 +203,9 @@ public final class HerobrineController implements Listener {
         if (candidates.isEmpty()) return;
 
         target = candidates.get(random.nextInt(candidates.size()));
-        double attackChance = plugin.getConfig().getDouble("herobrine.combat.attack-chance-percent", 25.0);
+        double attackChance = plugin.getConfig().getDouble("combat.chase.start-chance-percent", 100.0);
         boolean stalkingEnabled = plugin.getConfig().getBoolean("herobrine.stalking.enabled", true);
-        boolean mayAttack = horrorManager != null && horrorManager.isHostile(target);
+        boolean mayAttack = plugin.getConfig().getBoolean("combat.enabled", true) && horrorManager != null && horrorManager.isHostile(target);
         mode = mayAttack && random.nextDouble() * 100.0 < attackChance
                 ? Mode.ATTACKING : Mode.STALKING;
         modeTicks = 0;
@@ -253,7 +299,8 @@ public final class HerobrineController implements Listener {
         Vector delta = targetLocation.toVector().subtract(npcLocation.toVector());
         double distance = delta.length();
         if (distance > 0.001) {
-            double speed = Math.max(0.05, plugin.getConfig().getDouble("herobrine.combat.chase-speed", 0.28));
+            // Client relative-move packets have limited delta range; keep each step small.
+            double speed = Math.min(0.9, Math.max(0.05, plugin.getConfig().getDouble("combat.chase.speed-blocks-per-tick", 0.28)));
             Vector step = delta.normalize().multiply(Math.min(speed, distance));
             Location next = npcLocation.clone().add(step);
             next.setYaw(yawToward(next, targetLocation));
@@ -264,9 +311,9 @@ public final class HerobrineController implements Listener {
         }
 
         if (distance <= 2.0 && attackCooldownTicks-- <= 0) {
-            attackCooldownTicks = Math.max(1, (int) Math.round(plugin.getConfig().getDouble("herobrine.combat.attack-cooldown-seconds", 1.0) * 20.0));
+            attackCooldownTicks = Math.max(1, (int) Math.round(plugin.getConfig().getInt("combat.attack.cooldown-ticks", 20)));
             swingMainArm();
-            double damage = Math.max(0.0, plugin.getConfig().getDouble("herobrine.combat.damage", 4.0));
+            double damage = Math.max(0.0, plugin.getConfig().getDouble("combat.attack.damage", 4.0));
             target.damage(damage);
             Vector knockback = target.getLocation().toVector().subtract(npcLocation.toVector());
             if (knockback.lengthSquared() > 0.001) target.setVelocity(knockback.normalize().multiply(0.35).setY(0.18));
@@ -305,6 +352,7 @@ public final class HerobrineController implements Listener {
         npcLocation = null;
         mode = Mode.NONE;
         modeTicks = 0;
+        forcedAttack = false;
     }
 
     private int randomBetween(int min, int max) {

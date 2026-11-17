@@ -1,3 +1,72 @@
+# ============================================
+# HEROBRINE 1.8 COMPATIBILITY CONFIGURATION
+# Original names/defaults retained; extensions below remain available.
+# ============================================
+config-version: 9
+
+engine:
+  type: PACKETEVENTS
+  skins:
+    herobrine:
+      chance: 100
+      # Full texture value/signature are also retained in
+      # herobrine.appearance.skin below for the current NPC implementation.
+      value: 'ewogICJ0aW1lc3RhbXAiIDogMTczODEwMDAwNzExMCwKICAicHJvZmlsZUlkIiA6ICIxNzM1MGE5OWQ3MzQ0NDBjYTY0YzJjMDU3YTNjMWM4ZSIsCiAgInByb2ZpbGVOYW1lIiA6ICJHaWxkZWRoZXJvNTY5MSIsCiAgInNpZ25hdHVyZVJlcXVpcmVkIiA6IHRydWUsCiAgInRleHR1cmVzIiA6IHsKICAgICJTS0lOIiA6IHsKICAgICAgInVybCIgOiAiaHR0cDovL3RleHR1cmVzLm1pbmVjcmFmdC5uZXQvdGV4dHVyZS80MTczN2FhZTNhMmNiNDFkMzI4ZTdhYzliNjFkZjFhYzg0YWQ1M2I3NDBjZjQ4NTBjOGNjNGY0NGY0MGJiOGYiCiAgICB9CiAgfQp9'
+      signature: 'ROX1J4x56zzVAd1M34lRtxgmldowgIVCmcIARhaJa2+F6RSeEj5ujVu2aFmXjVRDaslTz5N5d+0xQxIMnAabwefwFxLyp6FBl/UrXg4yZczfdaZhqHeHXzgoKFhuK9ebpuABOehyRb0eRpO7YLoaC9QaS+EpzUA/kRvDPf/mTdJmQgoKIk0fDCCUNwlqpq0MP/59nF4qPPbQ0EMjzjXLNALXPSzJQRMKKMS0+oQwQE0vPlCbqj2vaZGtiM6GnAHKqQU5ZvloR7CnV0umcLuLuRYmE/agWLiK5LCQVTHC3XmG3FE+GRLttyIc0CqHeGjcbVkMZnu1mN71ZIeqneURpEIfltiYNZVBB8gaJUwu7jLVc9TvXCdsI1aHbW6NyDXl2qOckOogIi/29cf3+eHA/LZIcJM883ydGskcQVI1SEZtzjZ2ZI9vKHZf+vNIqWSaYk/gmU+xMXyWPMMKJRQgWmQ0Ug+NWLKJeurggR/H1d86ksYuSn3wk9GHIMRj9c3p5CQSk7J/D5UmbEB4wvuJZNKap2TC0yhdct6qgj9omAV5leQQ1BuyZKo7bPMaiM2pM9rQnZyScLmMqHjhtOvkpMoJ7Z+oJYhmfQUa4wt+e+g+Z73WTkEZDCJLXXGTP2Bvaol5GGi5yGr7uE6ONAbsJXKVmEM8urAPXJm5iM0bSj8='
+
+fear:
+  enabled: true
+  decay-rate: 1
+  max-level: 100
+  cave-multiplier: 1.5
+  night-multiplier: 1.3
+  triggers:
+    see-herobrine: 15
+    too-close: 25
+    hear-sound: 5
+    environment: 3
+
+screen-shake:
+  type: BLINDNESS
+  intensity: 5
+
+hallucinations:
+  interval: 10
+  phantom-footsteps: true
+  heartbeat: true
+  breath-effect: true
+  distant-sounds: true
+
+status:
+  broadcast-changes: false
+
+messages:
+  prefix: '<dark_gray>[<red>Herobrine</red><dark_gray>]</dark_gray> '
+  activated: '<red>Herobrine has been summoned...</red>'
+  deactivated: '<green>Herobrine has been banished.</green>'
+  state-idle: '<gray>Herobrine is <yellow>waiting</yellow>...</gray>'
+  state-hunting: '<gray>Herobrine is <red>hunting</red>...</gray>'
+  state-stalking: '<gray>Herobrine is <dark_red>stalking</dark_red>...</gray>'
+  state-manifesting: '<gray>Herobrine is <dark_red><bold>MANIFESTING</bold></dark_red>!</gray>'
+  reload-success: '<green>Configuration reloaded successfully.</green>'
+  reload-fail: '<red>Failed to reload configuration.</red>'
+  altar-inactive: '<red>Activate the altar first.</red>'
+  attack-started: '<green>Herobrine is attacking {player}.</green>'
+  update-available: []
+
+update-checker:
+  enabled: false
+
+npc-effects:
+  spawn:
+    particles: true
+    sounds: true
+  despawn:
+    particles: true
+    sounds: true
+    lightning: true
+    effects: true
+
 # HerobrineLegend 0.4.0 - atmospheric horror prototype
 horror:
   enabled: true
@@ -25,6 +94,38 @@ horror:
 # HerobrineLegend 0.3.1
 # Danno espresso in punti vita: 4.0 = 2 cuori completi.
 herobrine:
+  blacklisted-worlds: [world_the_end, world_nether]
+  always-awake:
+    enabled: false
+    world: world
+  spawn:
+    chance: 15
+    min-distance: 5
+    max-distance: 8
+    max-active: 3
+    despawn-time: 60
+  atmosphere:
+    dark-sky: false
+    rain: false
+    ambient-sounds: true
+    ambient-particles: true
+  effects:
+    sound-chance: 20
+    particle-chance: 15
+    environment-chance: 10
+    only-for-stalked-player: false
+  cooldowns:
+    solo: 30
+    duo: 45
+    trio: 60
+    group: 90
+  distances:
+    visibility-check: 40
+    too-close: 3
+    group-radius: 50
+  intervals:
+    main-task: 10
+    effect-task: 5
   combat:
     # Probabilità che un'apparizione casuale diventi un attacco.
     # Combattimento sbloccato a 100 paura; termina sotto 70.
@@ -51,15 +152,58 @@ herobrine:
       signature: 'ROX1J4x56zzVAd1M34lRtxgmldowgIVCmcIARhaJa2+F6RSeEj5ujVu2aFmXjVRDaslTz5N5d+0xQxIMnAabwefwFxLyp6FBl/UrXg4yZczfdaZhqHeHXzgoKFhuK9ebpuABOehyRb0eRpO7YLoaC9QaS+EpzUA/kRvDPf/mTdJmQgoKIk0fDCCUNwlqpq0MP/59nF4qPPbQ0EMjzjXLNALXPSzJQRMKKMS0+oQwQE0vPlCbqj2vaZGtiM6GnAHKqQU5ZvloR7CnV0umcLuLuRYmE/agWLiK5LCQVTHC3XmG3FE+GRLttyIc0CqHeGjcbVkMZnu1mN71ZIeqneURpEIfltiYNZVBB8gaJUwu7jLVc9TvXCdsI1aHbW6NyDXl2qOckOogIi/29cf3+eHA/LZIcJM883ydGskcQVI1SEZtzjZ2ZI9vKHZf+vNIqWSaYk/gmU+xMXyWPMMKJRQgWmQ0Ug+NWLKJeurggR/H1d86ksYuSn3wk9GHIMRj9c3p5CQSk7J/D5UmbEB4wvuJZNKap2TC0yhdct6qgj9omAV5leQQ1BuyZKo7bPMaiM2pM9rQnZyScLmMqHjhtOvkpMoJ7Z+oJYhmfQUa4wt+e+g+Z73WTkEZDCJLXXGTP2Bvaol5GGi5yGr7uE6ONAbsJXKVmEM8urAPXJm5iM0bSj8='
 
 ritual:
+  require-permission: false
+  summon:
+    particles: true
+    sounds: true
+    lightning: true
+  revoke:
+    particles: true
+    sounds: true
+    lightning: true
   enabled: true
   activation-item: CRYING_OBSIDIAN
   deactivation-item: DIAMOND
   center-block: MOSSY_COBBLESTONE
   ring-block: GOLD_BLOCK
-  side-redstone: REDSTONE_WIRE
+  corner-torch: REDSTONE_TORCH
   top-block: NETHERRACK
 
 world:
   change-time: false
   change-weather: false
   generate-structures: false
+
+# New combat extension (not present in original Herobrine 1.8)
+combat:
+  enabled: true
+  fear:
+    activate-at: 100
+    deactivate-below: 70
+  chase:
+    duration-seconds: 5
+    speed-blocks-per-tick: 0.28
+    start-chance-percent: 100.0
+  attack:
+    damage: 4.0
+    cooldown-ticks: 20
+
+# Suoni inquietanti ispirati ai suoni usati dal motore originale 1.8.
+# Nomi dei suoni identificati nel bytecode originale; non equivalgono a
+# una riproduzione completa dei tempi/probabilita dell'originale.
+soundscape:
+  enabled: true
+  ambient:
+    chance-percent: 20.0
+    events: [cave, enderman-stare, wither, ghast, phantom, warden]
+  events:
+    spawn: {enabled: true, sound: AMBIENT_CAVE, volume: 0.65, pitch: 0.65}
+    footsteps: {enabled: true, sound: BLOCK_STONE_STEP, volume: 0.7, pitch: 0.7}
+    heartbeat: {enabled: true, sound: ENTITY_WARDEN_HEARTBEAT, volume: 0.6, pitch: 0.8}
+    distant-breaking: {enabled: true, sound: BLOCK_STONE_BREAK, volume: 0.6, pitch: 0.55}
+    cave: {enabled: true, sound: AMBIENT_CAVE, volume: 0.55, pitch: 0.7}
+    enderman-stare: {enabled: true, sound: ENTITY_ENDERMAN_STARE, volume: 0.5, pitch: 0.65}
+    wither: {enabled: true, sound: ENTITY_WITHER_AMBIENT, volume: 0.4, pitch: 0.65}
+    ghast: {enabled: true, sound: ENTITY_GHAST_SCREAM, volume: 0.35, pitch: 0.6}
+    phantom: {enabled: true, sound: ENTITY_PHANTOM_AMBIENT, volume: 0.5, pitch: 0.7}
+    warden: {enabled: true, sound: ENTITY_WARDEN_AMBIENT, volume: 0.4, pitch: 0.7}

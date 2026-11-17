@@ -2,10 +2,10 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>it.gesy</groupId>
   <artifactId>herobrinelegend</artifactId>
-  <version>0.4.1</version>
+  <version>0.4.2-SNAPSHOT</version>
   <name>HerobrineLegend</name>
   <properties>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <repositories>
@@ -14,12 +14,12 @@
     <repository><id>codemc-snapshots</id><url>https://repo.codemc.io/repository/maven-snapshots/</url></repository>
   </repositories>
   <dependencies>
-    <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>26.3-R0.1-SNAPSHOT</version><scope>provided</scope></dependency>
+    <dependency><groupId>org.spigotmc</groupId><artifactId>spigot-api</artifactId><version>1.21.8-R0.1-SNAPSHOT</version><scope>provided</scope></dependency>
     <dependency><groupId>com.github.retrooper</groupId><artifactId>packetevents-spigot</artifactId><version>2.14.0</version><scope>provided</scope></dependency>
   </dependencies>
   <build>
     <plugins>
-      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.14.1</version><configuration><release>25</release></configuration></plugin>
+      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.14.1</version><configuration><release>21</release></configuration></plugin>
       <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId><version>3.3.1</version></plugin>
       <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-jar-plugin</artifactId><version>3.4.2</version></plugin>
     </plugins>
