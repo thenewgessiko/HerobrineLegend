@@ -173,7 +173,7 @@ public final class HerobrineController implements Listener {
         }
 
         if (npc == null) {
-            // Six actual appearances, separated by twenty seconds AFTER
+            // Six actual appearances, separated by fifteen seconds AFTER
             // the previous disappearance. No fixed 90-second timeout.
             if (horrorManager != null && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
                 for (Player player : Bukkit.getOnlinePlayers()) {
@@ -790,7 +790,7 @@ public final class HerobrineController implements Listener {
                 completedHuntingAppearances = 0;
             }
         }
-        // Twenty seconds counted from the stalking disappearance, just like hunting.
+        // Fifteen seconds counted from the stalking disappearance, just like hunting.
         if (npc != null && (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE)) {
             nextStalkingAttemptAt = encounterClockTicks
                     + Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));

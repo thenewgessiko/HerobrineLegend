@@ -56,7 +56,7 @@ public final class HorrorManager {
         // In stalking and hunting ambient audio only accompanies an appearance.
         addFear(player, 5);
         if (plugin.getConfig().getBoolean("horror.effects.spawn-sound", true)) {
-            soundscape.playRandomAmbient(player);
+            soundscape.playAppearanceEerie(player);
         }
 
         if (plugin.getConfig().getBoolean("horror.effects.spawn-particles", true))
@@ -81,7 +81,7 @@ public final class HorrorManager {
             if (getFear(player) >= 30) continue;
             if (ticks % audioInterval == 0
                     && random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 75.0)
-                    && soundscape.playRandomAmbient(player)) {
+                    && soundscape.playLowFearAmbient(player)) {
                 addFear(player, plugin.getConfig().getInt("fear.triggers.hear-sound", 5));
             }
             if (ticks % hallucinationInterval == 0) {

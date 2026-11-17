@@ -147,8 +147,8 @@ herobrine:
     min-fear-to-appear: 30
     min-distance: 5.0
     max-distance: 8.0
-    # 300 tick = 15 secondi; stalking waits 1 extra second after despawn.
-    check-interval-ticks: 400
+    # 300 tick = 15 secondi dalla sparizione, senza attesa aggiuntiva.
+    check-interval-ticks: 300
     appearance-chance-percent: 100.0
     vanish-when-looked-at: true
     duration-seconds: 15
@@ -163,7 +163,7 @@ herobrine:
       lightning-chance-percent: 20
 
   hunting:
-    appearance-interval-seconds: 20 # after each hunting disappearance; six actual appearances
+    appearance-interval-seconds: 15 # after each hunting disappearance; six actual appearances
   appearance:
     manifestation-smoke:
       enabled: true
@@ -226,7 +226,14 @@ soundscape:
   ambient:
     interval-seconds: 15
     chance-percent: 75.0
+    # Legacy list retained for backwards compatibility; phase-specific pools below are authoritative.
     events: [cave, cave, cave, ghast, phantom, warden, heartbeat, footsteps]
+  low-fear:
+    # Fear 0-29: alternate eerie sounds and entity sounds on successful sound events.
+    entity-events: [ghast, phantom, warden, heartbeat]
+  appearance:
+    # Fear 30-100: only non-entity eerie sounds on NPC appearances.
+    eerie-events: [cave, spawn, distant-breaking]
   events:
     spawn: {enabled: true, sound: AMBIENT_CAVE, volume: 0.65, pitch: 0.65}
     footsteps: {enabled: true, sound: BLOCK_STONE_STEP, volume: 0.7, pitch: 0.7}

@@ -11,6 +11,7 @@ import java.util.Random;
 public final class Soundscape {
     private final HerobrineLegendPlugin plugin;
     private final Random random = new Random();
+    private boolean nextLowFearSoundIsEntity = false;
     public Soundscape(HerobrineLegendPlugin plugin) { this.plugin = plugin; }
 
     public boolean play(Player player, String key, Location location) {
@@ -64,13 +65,35 @@ public final class Soundscape {
         }
     }
 
-    public boolean playRandomAmbient(Player player) {
+    /** Fear 0-29 only: alternate eerie and creature sounds on successful events. */
+    public boolean playLowFearAmbient(Player player) {
         if (!plugin.getConfig().getBoolean("soundscape.enabled", true)) return false;
-        List<String> options = plugin.getConfig().getStringList("soundscape.ambient.events");
+        boolean entityFirst = nextLowFearSoundIsEntity;
+        if (playFromPool(player, entityFirst ? "soundscape.low-fear.entity-events" : "soundscape.appearance.eerie-events",
+                entityFirst ? List.of("ghast", "phantom", "warden", "heartbeat") : List.of("cave", "spawn", "distant-breaking"))) {
+            nextLowFearSoundIsEntity = !entityFirst;
+            return true;
+        }
+        return false;
+    }
+
+    /** Fear 30-100: never select an entity sound at Herobrine's appearance. */
+    public boolean playAppearanceEerie(Player player) {
+        return playFromPool(player, "soundscape.appearance.eerie-events",
+                List.of("cave", "spawn", "distant-breaking"));
+    }
+
+    private boolean playFromPool(Player player, String path, List<String> defaults) {
+        if (!plugin.getConfig().getBoolean("soundscape.enabled", true)) return false;
+        List<String> options = plugin.getConfig().getStringList(path);
+        if (options.isEmpty()) options = defaults;
         if (options.isEmpty()) return false;
         String key = options.get(random.nextInt(options.size()));
-        // Play at the listener position so distant audio cannot become inaudible.
-        Location at = player.getLocation();
-        return play(player, key, at);
+        return play(player, key, player.getLocation());
+    }
+
+    /** Legacy entry point: only the pre-stalking Fear loop may use it. */
+    public boolean playRandomAmbient(Player player) {
+        return playLowFearAmbient(player);
     }
 }
