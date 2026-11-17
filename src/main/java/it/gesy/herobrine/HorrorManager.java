@@ -66,20 +66,25 @@ public final class HorrorManager {
             for (Map.Entry<UUID, Integer> entry : fear.entrySet()) updateHostility(entry.getKey(), entry.getValue());
         }
         if (!state.isActive() || !plugin.getConfig().getBoolean("horror.enabled", true)) return;
-        int interval = Math.max(1, plugin.getConfig().getInt("horror.hallucinations.interval-seconds", 10));
-        if (ticks % interval != 0) return;
         Location anchor = state.getAnchor();
         if (anchor == null || anchor.getWorld() == null) return;
+        // Independent ambient loop: never gate sounds behind the hallucination roll.
+        int audioInterval = Math.max(1, plugin.getConfig().getInt("soundscape.ambient.interval-seconds", 6));
+        int hallucinationInterval = Math.max(1, plugin.getConfig().getInt("horror.hallucinations.interval-seconds", 10));
         for (Player player : Bukkit.getOnlinePlayers()) {
-            if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()) continue;
-            double chance = plugin.getConfig().getDouble("horror.hallucinations.chance-percent", 20.0);
-            int level = fear.getOrDefault(player.getUniqueId(), 0);
-            if (random.nextDouble() * 100 >= Math.min(100, chance + level * .25)) continue;
-            playHallucination(player);
-            // Atmospheric audio can raise fear before the first NPC appearance.
-            if (random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 20.0)) {
-                soundscape.playRandomAmbient(player);
+            if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()
+                    || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
+            if (ticks % audioInterval == 0
+                    && random.nextDouble() * 100 < plugin.getConfig().getDouble("soundscape.ambient.chance-percent", 75.0)
+                    && soundscape.playRandomAmbient(player)) {
                 addFear(player, plugin.getConfig().getInt("fear.triggers.hear-sound", 5));
+            }
+            if (ticks % hallucinationInterval == 0) {
+                double chance = plugin.getConfig().getDouble("horror.hallucinations.chance-percent", 20.0);
+                int level = fear.getOrDefault(player.getUniqueId(), 0);
+                if (random.nextDouble() * 100 < Math.min(100, chance + level * .25)) {
+                    playHallucination(player);
+                }
             }
         }
     }
@@ -89,13 +94,13 @@ public final class HorrorManager {
         int effect = random.nextInt(4);
         if (effect == 0 && plugin.getConfig().getBoolean("horror.hallucinations.phantom-footsteps", true)) {
             Location nearby = at.clone().add(random.nextInt(9) - 4, 0, random.nextInt(9) - 4);
-            soundscape.play(player, "footsteps", nearby);
+            if (!soundscape.play(player, "footsteps", nearby)) return;
         } else if (effect == 1 && plugin.getConfig().getBoolean("horror.hallucinations.heartbeat", true)) {
-            soundscape.play(player, "heartbeat", at);
+            if (!soundscape.play(player, "heartbeat", at)) return;
         } else if (effect == 2 && plugin.getConfig().getBoolean("horror.hallucinations.breath-effect", true)) {
             player.spawnParticle(Particle.CLOUD, at.clone().add(0, 1.5, 0), 8, .25, .15, .25, .01);
         } else if (effect == 3 && plugin.getConfig().getBoolean("horror.hallucinations.distant-sounds", true)) {
-            soundscape.play(player, "distant-breaking", at.clone().add(6, 0, 6));
+            if (!soundscape.play(player, "distant-breaking", at)) return;
         } else return;
         if (effect != 2) addFear(player, plugin.getConfig().getInt("fear.triggers.hear-sound", 5));
         int level = fear.getOrDefault(player.getUniqueId(), 0);

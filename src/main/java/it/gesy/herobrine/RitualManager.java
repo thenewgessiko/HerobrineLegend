@@ -52,8 +52,12 @@ public final class RitualManager implements Listener {
                         item.getLocation().getZ() - (below.getZ() + 0.5));
                 if (horizontal > 0.85 || item.getLocation().getY() > below.getY() + 2.1) return;
                 cancel();
-                if (below == null) return;
-                Block center = below.getRelative(0, -1, 0);
+                // Delay the completed ritual by one second, without consuming the item yet.
+                final Block ritualBlock = below;
+                final Material ritualItem = type;
+                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!item.isValid() || item.isDead()) return;
+                Block center = ritualBlock.getRelative(0, -1, 0);
                 if (!isRitualComplete(center)) return;
                 if (type == material("ritual.activation-item", Material.CRYING_OBSIDIAN)) {
                     if (state.isActive()) {
@@ -87,6 +91,7 @@ public final class RitualManager implements Listener {
                     player.sendMessage(ChatColor.YELLOW + "La presenza è svanita.");
                     plugin.getLogger().info("Herobrine deactivated by " + player.getName());
                 }
+                }, Math.max(1L, plugin.getConfig().getLong("ritual.transition-delay-ticks", 20L)));
             }
         }.runTaskTimer(plugin, 1L, 1L);
     }

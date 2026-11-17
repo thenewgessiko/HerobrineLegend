@@ -13,27 +13,30 @@ public final class Soundscape {
     private final Random random = new Random();
     public Soundscape(HerobrineLegendPlugin plugin) { this.plugin = plugin; }
 
-    public void play(Player player, String key, Location location) {
-        if (!plugin.getConfig().getBoolean("soundscape.enabled", true)) return;
+    public boolean play(Player player, String key, Location location) {
+        if (!plugin.getConfig().getBoolean("soundscape.enabled", true)) return false;
         ConfigurationSection entry = plugin.getConfig().getConfigurationSection("soundscape.events." + key);
-        if (entry == null || !entry.getBoolean("enabled", true)) return;
+        if (entry == null || !entry.getBoolean("enabled", true)) return false;
         String name = entry.getString("sound", "AMBIENT_CAVE");
         try {
             Sound sound = Sound.valueOf(name);
             float volume = (float) Math.max(0, Math.min(4, entry.getDouble("volume", 0.7)));
             float pitch = (float) Math.max(0.5, Math.min(2, entry.getDouble("pitch", 0.75)));
             player.playSound(location, sound, volume, pitch);
+            return true;
         } catch (IllegalArgumentException e) {
             plugin.getLogger().warning("Invalid soundscape.events." + key + ".sound: " + name);
+            return false;
         }
     }
 
-    public void playRandomAmbient(Player player) {
-        if (!plugin.getConfig().getBoolean("soundscape.enabled", true)) return;
+    public boolean playRandomAmbient(Player player) {
+        if (!plugin.getConfig().getBoolean("soundscape.enabled", true)) return false;
         List<String> options = plugin.getConfig().getStringList("soundscape.ambient.events");
-        if (options.isEmpty()) return;
+        if (options.isEmpty()) return false;
         String key = options.get(random.nextInt(options.size()));
-        Location at = player.getLocation().clone().add(random.nextInt(17)-8, 0, random.nextInt(17)-8);
-        play(player, key, at);
+        // Play at the listener position so distant audio cannot become inaudible.
+        Location at = player.getLocation();
+        return play(player, key, at);
     }
 }
