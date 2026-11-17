@@ -12,6 +12,8 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
     private EncounterState encounterState;
     private HerobrineController herobrineController;
 
+    public HorrorManager getHorrorManager() { return horrorManager; }
+
     @Override
     public void onEnable() {
         saveDefaultConfig();

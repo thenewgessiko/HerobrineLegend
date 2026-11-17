@@ -94,6 +94,8 @@ public final class HerobrineController implements Listener {
         completedHuntingAppearances = 0;
         despawn();
         nextAttemptTicks = 0;
+        nextStalkingAttemptAt = encounterClockTicks;
+        nextHuntingAppearanceAt = encounterClockTicks;
     }
 
     /** Re-applies settings after /herobrinelegend reload. */
@@ -171,7 +173,7 @@ public final class HerobrineController implements Listener {
         }
 
         if (npc == null) {
-            // Six actual appearances, separated by fifteen seconds AFTER
+            // Six actual appearances, separated by twenty seconds AFTER
             // the previous disappearance. No fixed 90-second timeout.
             if (horrorManager != null && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) {
                 for (Player player : Bukkit.getOnlinePlayers()) {
@@ -226,14 +228,8 @@ public final class HerobrineController implements Listener {
         // appearance. This is audio only: it must not raise Fear or reset timers.
         // It never plays during hunting, nor if Herobrine has already vanished.
         if (mode == Mode.STALKING && modeTicks == 40 && target != null) {
-            Sound[] voices = {
-                Sound.ENTITY_ENDERMAN_SCREAM,
-                Sound.ENTITY_WARDEN_AMBIENT,
-                Sound.ENTITY_WARDEN_NEARBY_CLOSE
-            };
-            Sound selected = voices[random.nextInt(voices.length)];
             float pitch = 0.50f + random.nextFloat() * 0.22f;
-            target.playSound(npcLocation, selected, 0.9f, pitch);
+            target.playSound(npcLocation, Sound.ENTITY_ENDERMAN_SCREAM, 0.9f, pitch);
         }
         emitManifestationSmoke();
         if (stalkingContactCooldown > 0) stalkingContactCooldown--;
@@ -794,7 +790,7 @@ public final class HerobrineController implements Listener {
                 completedHuntingAppearances = 0;
             }
         }
-        // Fifteen seconds counted from the stalking disappearance, just like hunting.
+        // Twenty seconds counted from the stalking disappearance, just like hunting.
         if (npc != null && (mode == Mode.STALKING || mode == Mode.STALKING_JUMPSCARE)) {
             nextStalkingAttemptAt = encounterClockTicks
                     + Math.max(1, plugin.getConfig().getInt("herobrine.stalking.check-interval-ticks", 300));

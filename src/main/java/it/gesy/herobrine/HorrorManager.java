@@ -128,6 +128,13 @@ public final class HorrorManager {
         if (current >= max && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) huntingStarted.put(id, ticks);
         updateHostility(id, current);
     }
+    /** Banishment clears all players' Fear and any pending hunting cycles. */
+    public void resetAllFear() {
+        fear.clear();
+        hostile.clear();
+        huntingStarted.clear();
+    }
+
     public int getFear(Player player) { return fear.getOrDefault(player.getUniqueId(), 0); }
 
     public void setFear(Player player, int level) {

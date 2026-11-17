@@ -148,7 +148,7 @@ herobrine:
     min-distance: 5.0
     max-distance: 8.0
     # 300 tick = 15 secondi; stalking waits 1 extra second after despawn.
-    check-interval-ticks: 300
+    check-interval-ticks: 400
     appearance-chance-percent: 100.0
     vanish-when-looked-at: true
     duration-seconds: 15
@@ -163,7 +163,7 @@ herobrine:
       lightning-chance-percent: 20
 
   hunting:
-    appearance-interval-seconds: 15 # after each hunting disappearance; six actual appearances
+    appearance-interval-seconds: 20 # after each hunting disappearance; six actual appearances
   appearance:
     manifestation-smoke:
       enabled: true

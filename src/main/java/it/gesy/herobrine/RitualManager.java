@@ -66,6 +66,7 @@ public final class RitualManager implements Listener {
                     }
                     Block flame = below.getRelative(0, 1, 0);
                     if (flame.getType() != Material.AIR) return;
+                    plugin.getHorrorManager().resetAllFear();
                     state.activate(center.getLocation());
                     // Visual lightning only: do not accidentally burn nearby builds.
                     below.getWorld().strikeLightningEffect(below.getLocation().add(0.5, 1, 0.5));
@@ -89,6 +90,7 @@ public final class RitualManager implements Listener {
                     playRitualEffects(below.getLocation().add(0.5, 1, 0.5), false);
                     state.deactivate();
                     controller.deactivateImmediately();
+                    plugin.getHorrorManager().resetAllFear();
                     consumeOne(item);
                     player.sendMessage(ChatColor.YELLOW + "La presenza è svanita.");
                     plugin.getLogger().info("Herobrine deactivated by " + player.getName());
