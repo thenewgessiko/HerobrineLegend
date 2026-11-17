@@ -1,8 +1,35 @@
+# HerobrineLegend 0.4.0 - atmospheric horror prototype
+horror:
+  enabled: true
+  fear:
+    enabled: true
+    max-level: 100
+    decay-per-minute: 1
+    blindness-threshold: 70
+    brief-blindness: true
+    triggers:
+      see-herobrine: 15
+      attack: 20
+      hallucination: 5
+  effects:
+    spawn-sound: true
+    spawn-particles: true
+  hallucinations:
+    interval-seconds: 10
+    chance-percent: 20.0
+    phantom-footsteps: true
+    heartbeat: true
+    breath-effect: true
+    distant-sounds: true
+
 # HerobrineLegend 0.3.1
 # Danno espresso in punti vita: 4.0 = 2 cuori completi.
 herobrine:
   combat:
     # Probabilità che un'apparizione casuale diventi un attacco.
+    # Combattimento sbloccato a 100 paura; termina sotto 70.
+    hostile-at-fear: 100
+    calm-below-fear: 70
     attack-chance-percent: 25.0
     damage: 4.0
     attack-cooldown-seconds: 1.0

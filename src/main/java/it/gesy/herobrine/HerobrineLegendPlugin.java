@@ -8,6 +8,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class HerobrineLegendPlugin extends JavaPlugin {
     private RitualManager ritualManager;
+    private HorrorManager horrorManager;
     private EncounterState encounterState;
     private HerobrineController herobrineController;
 
@@ -29,11 +30,14 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
         encounterState.load();
         herobrineController = new HerobrineController(this, encounterState);
         ritualManager = new RitualManager(this, encounterState, herobrineController);
+        horrorManager = new HorrorManager(this, encounterState);
+        herobrineController.setHorrorManager(horrorManager);
         getServer().getPluginManager().registerEvents(ritualManager, this);
         getServer().getPluginManager().registerEvents(herobrineController, this);
         herobrineController.start();
+        horrorManager.start();
 
-        getLogger().info("HerobrineLegend 0.3.1 abilitato con PacketEvents.");
+        getLogger().info("HerobrineLegend 0.4.0 abilitato con PacketEvents.");
         if (encounterState.isActive()) {
             getLogger().info("Herobrine risulta già evocato: il sistema di incontri è stato ripristinato.");
         }
@@ -41,6 +45,7 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (horrorManager != null) horrorManager.shutdown();
         if (herobrineController != null) herobrineController.shutdown();
         if (encounterState != null) encounterState.save();
     }
@@ -60,6 +65,7 @@ public final class HerobrineLegendPlugin extends JavaPlugin {
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             reloadConfig();
             herobrineController.refreshConfiguration();
+            horrorManager.refreshConfiguration();
             sender.sendMessage(ChatColor.GREEN + "Configurazione ricaricata.");
             return true;
         }

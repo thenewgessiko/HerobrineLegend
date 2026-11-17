@@ -35,6 +35,9 @@ public final class HerobrineController implements Listener {
     private static final int ATTACK_DURATION_TICKS = 5 * 20;
     private final HerobrineLegendPlugin plugin;
     private final EncounterState state;
+    private HorrorManager horrorManager;
+
+    public void setHorrorManager(HorrorManager manager) { this.horrorManager = manager; }
     private final Random random = new Random();
     private BukkitTask task;
     private NPC npc;
@@ -126,6 +129,11 @@ public final class HerobrineController implements Listener {
         }
 
         if (mode == Mode.ATTACKING) {
+            if (horrorManager == null || !horrorManager.isHostile(target)) {
+                despawn();
+                nextAttemptTicks = 40;
+                return;
+            }
             chaseTarget();
             if (modeTicks >= ATTACK_DURATION_TICKS) {
                 despawn();
@@ -151,7 +159,8 @@ public final class HerobrineController implements Listener {
         target = candidates.get(random.nextInt(candidates.size()));
         double attackChance = plugin.getConfig().getDouble("herobrine.combat.attack-chance-percent", 25.0);
         boolean stalkingEnabled = plugin.getConfig().getBoolean("herobrine.stalking.enabled", true);
-        mode = !stalkingEnabled || random.nextDouble() * 100.0 < attackChance
+        boolean mayAttack = horrorManager != null && horrorManager.isHostile(target);
+        mode = mayAttack && random.nextDouble() * 100.0 < attackChance
                 ? Mode.ATTACKING : Mode.STALKING;
         modeTicks = 0;
         modeDurationTicks = mode == Mode.STALKING ? randomBetween(100, 160)
@@ -168,6 +177,7 @@ public final class HerobrineController implements Listener {
         createNpc(spawn);
         if (npc == null) return;
         updateViewers();
+        if (horrorManager != null) horrorManager.onEncounter(target, mode == Mode.ATTACKING);
         plugin.getLogger().info("Herobrine encounter started: " + mode + " near " + target.getName());
     }
 
