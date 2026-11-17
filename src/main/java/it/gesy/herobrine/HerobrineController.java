@@ -537,20 +537,20 @@ public final class HerobrineController implements Listener {
                 && plugin.getConfig().getBoolean("combat.chase.auto-jump", true)
                 && horizontal.lengthSquared() > 0.00001) {
             Vector direction = horizontal.clone().normalize();
-            // Probe the next ledge at feet height. Do not require a completely
-            // clear NPC-sized box at the probe itself: the ledge intentionally
-            // occupies the lower half of that box.
-            double lookAhead = Math.max(0.65, horizontal.length() + 0.40);
-            Location ahead = feet.clone().add(direction.multiply(lookAhead));
-            Location nextStep = feet.clone().add(horizontal);
-            boolean blocked = !hasRoom(ahead) || !hasRoom(nextStep);
-            // The next floor is one block higher, with enough headroom above
-            // it. Probe the top surface rather than the solid obstacle body.
-            Location landing = ahead.clone().add(0, 1.0, 0);
-            boolean oneBlockLedge = blocked
-                    && !ahead.getBlock().isPassable()
-                    && hasRoom(landing)
-                    && hasRoom(feet.clone().add(0, 1.0, 0));
+            // Look roughly one full block ahead of the NPC collision body.
+            // Scan multiple distances because the nearest probe may still be
+            // air while the far probe already intersects the obstacle.
+            boolean oneBlockLedge = false;
+            for (double distance = 0.9; distance <= 1.8; distance += 0.3) {
+                Location probe = feet.clone().add(direction.clone().multiply(distance));
+                // The obstacle can be at any of the feet-level sample corners.
+                if (!hasRoom(probe)
+                        && hasRoom(probe.clone().add(0, 1.01, 0))
+                        && hasRoom(feet.clone().add(0, 1.01, 0))) {
+                    oneBlockLedge = true;
+                    break;
+                }
+            }
             if (oneBlockLedge) {
                 verticalVelocity = 0.52;
                 jumpTicksRemaining = 1;
@@ -647,34 +647,28 @@ public final class HerobrineController implements Listener {
     }
 
     private void emitManifestationSmoke() {
-        if (npcLocation == null || target == null || !plugin.getConfig().getBoolean("herobrine.appearance.manifestation-smoke.enabled", true)) return;
+        if (npcLocation == null || !plugin.getConfig().getBoolean("herobrine.appearance.manifestation-smoke.enabled", true)) return;
         int duration = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.duration-seconds", 3)) * 20;
-        if (modeTicks > duration || modeTicks % 2 != 0) return;
+        // Hunting smoke follows the moving NPC for the whole pursuit; stalking
+        // smoke lasts only the configured manifestation period.
+        boolean hunting = mode == Mode.ATTACK_WINDUP || mode == Mode.ATTACKING;
+        if (!hunting && modeTicks > duration) return;
+        if (modeTicks % 2 != 0) return;
         World world = npcLocation.getWorld();
         int around = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.around-herobrine-count", 2));
         if (around > 0) world.spawnParticle(Particle.SMOKE, npcLocation.clone().add(0, 0.9, 0), around, 0.28, 0.65, 0.28, 0.003);
-
-        // Ground-level smoke corridor between the player and the apparition.
-        // Sample the surface under each point so slopes remain visible.
-        Location playerPos = target.getLocation();
-        if (!world.equals(playerPos.getWorld())) return;
-        Vector delta = npcLocation.toVector().subtract(playerPos.toVector());
-        double distance = Math.sqrt(delta.getX() * delta.getX() + delta.getZ() * delta.getZ());
-        if (distance < 0.2) return;
-        int segments = Math.max(1, (int) Math.ceil(distance * 2));
-        int density = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.ground-count-per-segment", 8));
-        double width = Math.max(0, plugin.getConfig().getDouble("herobrine.appearance.manifestation-smoke.ground-width", 0.65));
-        for (int i = 0; i <= segments; i++) {
-            double t = (double) i / segments;
-            double x = playerPos.getX() + delta.getX() * t;
-            double z = playerPos.getZ() + delta.getZ() * t;
-            double interpolatedY = playerPos.getY() + (npcLocation.getY() - playerPos.getY()) * t;
-            Location ground = new Location(world, x, interpolatedY, z);
-            // Only render smoke where a solid surface is immediately below.
-            for (int depth = 0; depth <= 3; depth++) {
-                Location sample = ground.clone().subtract(0, depth, 0);
-                if (sample.clone().subtract(0, 0.25, 0).getBlock().getType().isSolid()) {
-                    if (density > 0) world.spawnParticle(Particle.SMOKE, sample.add(0, 0.18, 0), density, width, 0.08, width, 0.003);
+        int count = Math.max(0, plugin.getConfig().getInt("herobrine.appearance.manifestation-smoke.ground-particle-count", 65));
+        double radius = Math.max(0, plugin.getConfig().getDouble("herobrine.appearance.manifestation-smoke.ground-radius", 5.0));
+        java.util.concurrent.ThreadLocalRandom rng = java.util.concurrent.ThreadLocalRandom.current();
+        for (int i = 0; i < count; i++) {
+            double x = npcLocation.getX() + rng.nextDouble(-radius, radius);
+            double z = npcLocation.getZ() + rng.nextDouble(-radius, radius);
+            Location point = new Location(world, x, npcLocation.getY() + 1.0, z);
+            for (int depth = 0; depth < 5; depth++) {
+                Location floor = point.clone().subtract(0, depth, 0);
+                if (floor.clone().subtract(0, 0.25, 0).getBlock().getType().isSolid()
+                        && floor.getBlock().isPassable()) {
+                    world.spawnParticle(Particle.SMOKE, floor.add(0, 0.12, 0), 1, 0.12, 0.06, 0.12, 0.002);
                     break;
                 }
             }

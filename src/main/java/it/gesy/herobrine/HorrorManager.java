@@ -130,7 +130,12 @@ public final class HorrorManager {
         int max = Math.max(1, plugin.getConfig().getInt("horror.fear.max-level", 100));
         UUID id = player.getUniqueId();
         if (huntingStarted.containsKey(id)) return;
-        int current = fear.merge(id, Math.max(0, amount), (a,b) -> Math.min(max, a+b));
+        int before = fear.getOrDefault(id, 0);
+        int increment = before < 30 ? 5 : before < 65 ? 2 : 1;
+        // Preserve event counts: one event grants one scaled increment,
+        // regardless of its legacy +5 configuration.
+        int current = Math.min(max, before + (amount <= 0 ? 0 : increment));
+        fear.put(id, current);
         if (current >= max && plugin.getConfig().getBoolean("fear.cycling.enabled", true)) huntingStarted.put(id, ticks);
         updateHostility(id, current);
     }

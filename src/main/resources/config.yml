@@ -168,8 +168,8 @@ herobrine:
       enabled: true
       duration-seconds: 3
       around-herobrine-count: 2
-      ground-count-per-segment: 8
-      ground-width: 0.65
+      ground-particle-count: 65
+      ground-radius: 5.0
     # Il modello usato è un player NPC PacketEvents, non uno zombie.
     normal-player-arms: true
     skin:
