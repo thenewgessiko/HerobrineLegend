@@ -1,1 +1,0 @@
-HerobrineLegend 0.4.3: six complete hunting appearances, 15s after each despawn, reset Fear to zero after sixth. Stalking: 1s pause + 15s cooldown after despawn. Jump unchanged. No fixed 90s hunting timeout.
