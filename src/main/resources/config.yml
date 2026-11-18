@@ -147,8 +147,8 @@ herobrine:
     min-fear-to-appear: 30
     min-distance: 5.0
     max-distance: 8.0
-    # 300 tick = 15 secondi dalla sparizione, senza attesa aggiuntiva.
-    check-interval-ticks: 300
+    # 600 tick = 30 secondi dalla sparizione; suono globale a meta (15s).
+    check-interval-ticks: 600
     appearance-chance-percent: 100.0
     vanish-when-looked-at: true
     duration-seconds: 15

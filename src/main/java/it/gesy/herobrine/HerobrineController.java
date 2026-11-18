@@ -69,6 +69,9 @@ public final class HerobrineController implements Listener {
     private double verticalVelocity;
     // One global NPC, independent cooldowns and hunt progress per player.
     private long nextGlobalAppearanceAt;
+    private long midpointSoundAt = -1L;
+    private boolean midpointSoundPlayed = true;
+    private final Soundscape midpointSoundscape;
     private final Map<UUID, Integer> completedHunts = new HashMap<>();
     private UUID lastSelectedTarget;
     private boolean huntingAppearanceInProgress;
@@ -77,6 +80,7 @@ public final class HerobrineController implements Listener {
     public HerobrineController(HerobrineLegendPlugin plugin, EncounterState state) {
         this.plugin = plugin;
         this.state = state;
+        this.midpointSoundscape = new Soundscape(plugin);
     }
 
     public void start() {
@@ -94,6 +98,7 @@ public final class HerobrineController implements Listener {
     public void deactivateImmediately() {
         huntingAppearanceInProgress = false;
         nextGlobalAppearanceAt = encounterClockTicks;
+        midpointSoundPlayed = true;
         completedHunts.clear();
         lastSelectedTarget = null;
         despawn();
@@ -169,6 +174,7 @@ public final class HerobrineController implements Listener {
         if (!state.isActive()) {
             huntingAppearanceInProgress = false;
             nextGlobalAppearanceAt = encounterClockTicks;
+            midpointSoundPlayed = true;
             completedHunts.clear();
             lastSelectedTarget = null;
             if (npc != null) despawn();
@@ -180,6 +186,10 @@ public final class HerobrineController implements Listener {
             // One server-wide cooldown, measured from the last actual NPC disappearance.
             if (stalkingSlot) {
                 nextStalkingAttemptAt = encounterClockTicks + stalkingInterval;
+            }
+            if (!midpointSoundPlayed && encounterClockTicks >= midpointSoundAt) {
+                midpointSoundPlayed = true;
+                playGlobalCooldownMidpoint();
             }
             if (encounterClockTicks >= nextGlobalAppearanceAt) tryStartNextEligibleEncounter();
             return;
@@ -325,6 +335,33 @@ public final class HerobrineController implements Listener {
         if (npc == null) { despawn(); return; }
         updateViewers();
         if (horrorManager != null) horrorManager.onEncounter(player, true);
+    }
+
+    /** Audio-only midpoint. Uses the same fair next-target order, without spawning an NPC. */
+    private void playGlobalCooldownMidpoint() {
+        Location anchor = state.getAnchor();
+        if (anchor == null || anchor.getWorld() == null || horrorManager == null) return;
+        List<Player> candidates = new ArrayList<>();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!player.getWorld().equals(anchor.getWorld()) || player.isDead()
+                    || player.getGameMode() == org.bukkit.GameMode.SPECTATOR
+                    || horrorManager.getFear(player) < plugin.getConfig().getInt("herobrine.stalking.min-fear-to-appear", 30)) continue;
+            candidates.add(player);
+        }
+        if (candidates.isEmpty()) return;
+        candidates.sort(java.util.Comparator.comparing(p -> p.getUniqueId().toString()));
+        int startIndex = 0;
+        if (lastSelectedTarget != null) {
+            for (int i = 0; i < candidates.size(); i++) {
+                if (candidates.get(i).getUniqueId().toString().compareTo(lastSelectedTarget.toString()) > 0) {
+                    startIndex = i;
+                    break;
+                }
+            }
+        }
+        Player nextTarget = candidates.get(startIndex);
+        if (horrorManager.isHunting(nextTarget)) midpointSoundscape.playHuntingMidpointHeartbeat(nextTarget);
+        else midpointSoundscape.playGuaranteedStalkingMidpoint(nextTarget);
     }
 
     private void tryStartNextEligibleEncounter() {
@@ -768,9 +805,11 @@ public final class HerobrineController implements Listener {
 
     private void despawn(boolean effects) {
         if (npc != null) {
-            // Every real disappearance starts a 15-second GLOBAL cooldown.
-            // No other player can be targeted until it expires.
-            nextGlobalAppearanceAt = encounterClockTicks + 300L;
+            // Every real disappearance starts a 30-second GLOBAL cooldown.
+            // One guaranteed, target-local sound is scheduled at the 15-second midpoint.
+            nextGlobalAppearanceAt = encounterClockTicks + 600L;
+            midpointSoundAt = encounterClockTicks + 300L;
+            midpointSoundPlayed = false;
         }
         if (npc != null && target != null && !forcedAttack) {
             UUID id = target.getUniqueId();

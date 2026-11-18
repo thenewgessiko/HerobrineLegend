@@ -77,6 +77,38 @@ public final class Soundscape {
         return false;
     }
 
+    /** Guaranteed midpoint cue for stalking: one random sound from the low-Fear eerie/entity pool. */
+    public void playGuaranteedStalkingMidpoint(Player player) {
+        if (!player.isOnline()) return;
+        List<String> eerie = plugin.getConfig().getStringList("soundscape.appearance.eerie-events");
+        List<String> entities = plugin.getConfig().getStringList("soundscape.low-fear.entity-events");
+        java.util.ArrayList<String> pool = new java.util.ArrayList<>();
+        if (eerie.isEmpty()) eerie = List.of("cave", "spawn", "distant-breaking");
+        if (entities.isEmpty()) entities = List.of("ghast", "phantom", "warden", "heartbeat");
+        pool.addAll(eerie);
+        pool.addAll(entities);
+        java.util.Collections.shuffle(pool, random);
+        for (String key : pool) {
+            if (play(player, key, player.getLocation())) return;
+        }
+        // Midpoint audio is guaranteed even if the configurable soundscape is disabled.
+        player.playSound(player.getLocation(), Sound.AMBIENT_CAVE, 0.7f, 0.7f);
+    }
+
+    /** Hunting midpoint: exactly two paired Warden heartbeats (four pulses), never random. */
+    public void playHuntingMidpointHeartbeat(Player player) {
+        if (!player.isOnline()) return;
+        Location origin = player.getLocation().clone();
+        long[] offsets = {0L, 4L, 14L, 18L};
+        for (long offset : offsets) {
+            org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    player.playSound(origin, Sound.ENTITY_WARDEN_HEARTBEAT, 0.8f, 0.8f);
+                }
+            }, offset);
+        }
+    }
+
     /** Fear 30-100: cave ambience only; ignore stale custom appearance pools. */
     public boolean playAppearanceEerie(Player player) {
         return play(player, "cave", player.getLocation());
