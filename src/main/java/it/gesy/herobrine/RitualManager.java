@@ -61,7 +61,7 @@ public final class RitualManager implements Listener {
                 if (!isRitualComplete(center)) return;
                 if (type == material("ritual.activation-item", Material.CRYING_OBSIDIAN)) {
                     if (state.isActive()) {
-                        player.sendMessage(ChatColor.GRAY + "Il rituale è già attivo.");
+                        player.sendMessage(ChatColor.GRAY + "The ritual is already active.");
                         return;
                     }
                     Block flame = below.getRelative(0, 1, 0);
@@ -77,14 +77,14 @@ public final class RitualManager implements Listener {
                     plugin.getLogger().info("Ritual activated at " + center.getWorld().getName() + " " + center.getX() + "," + center.getY() + "," + center.getZ());
                 } else {
                     if (!state.isActive()) {
-                        player.sendMessage(ChatColor.GRAY + "Il rituale non è attivo.");
+                        player.sendMessage(ChatColor.GRAY + "The ritual is not active.");
                         return;
                     }
                     Location anchor = state.getAnchor();
                     if (anchor == null || !sameBlock(anchor, center.getLocation())) return;
                     // The player must extinguish the flame before banishing Herobrine.
                     if (below.getRelative(0, 1, 0).getType() == Material.FIRE) {
-                        player.sendMessage(ChatColor.RED + "Spegni prima la fiamma sulla netherrack.");
+                        player.sendMessage(ChatColor.RED + "Extinguish the flame on the netherrack first.");
                         return;
                     }
                     playRitualEffects(below.getLocation().add(0.5, 1, 0.5), false);

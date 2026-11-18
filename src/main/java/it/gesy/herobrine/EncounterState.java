@@ -55,7 +55,7 @@ public final class EncounterState {
 
     public void save() {
         if (!plugin.getDataFolder().exists() && !plugin.getDataFolder().mkdirs()) {
-            plugin.getLogger().severe("Impossibile creare la cartella dati del plugin.");
+            plugin.getLogger().severe("Unable to create the plugin data folder.");
             return;
         }
         YamlConfiguration yaml = new YamlConfiguration();
@@ -63,6 +63,6 @@ public final class EncounterState {
         if (worldId != null) yaml.set("ritual.world", worldId.toString());
         yaml.set("ritual.x", x); yaml.set("ritual.y", y); yaml.set("ritual.z", z);
         try { yaml.save(file); }
-        catch (IOException exception) { plugin.getLogger().severe("Impossibile salvare state.yml: " + exception.getMessage()); }
+        catch (IOException exception) { plugin.getLogger().severe("Unable to save state.yml: " + exception.getMessage()); }
     }
 }

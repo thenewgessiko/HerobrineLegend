@@ -32,12 +32,12 @@ public final class HerobrineLegendPlugin extends JavaPlugin implements TabComple
     public void onEnable() {
         saveDefaultConfig();
         if (getServer().getPluginManager().getPlugin("packetevents") == null) {
-            getLogger().severe("PacketEvents non trovato. HerobrineLegend richiede PacketEvents 2.14.0 o superiore.");
+            getLogger().severe("PacketEvents not found. HerobrineLegend requires PacketEvents 2.14.0 or later.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
         if (!PacketEvents.getAPI().isInitialized()) {
-            getLogger().severe("PacketEvents non è inizializzato. Controlla l'installazione di PacketEvents.");
+            getLogger().severe("PacketEvents is not initialized. Check your PacketEvents installation.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -55,9 +55,9 @@ public final class HerobrineLegendPlugin extends JavaPlugin implements TabComple
         herobrineController.start();
         horrorManager.start();
 
-        getLogger().info("HerobrineLegend 0.4.4 FINAL abilitato con PacketEvents.");
+        getLogger().info("HerobrineLegend 0.4.4 enabled with PacketEvents.");
         if (encounterState.isActive()) {
-            getLogger().info("Herobrine risulta già evocato: il sistema di incontri è stato ripristinato.");
+            getLogger().info("Herobrine is already summoned: the encounter system has been restored.");
         }
     }
 
@@ -72,64 +72,64 @@ public final class HerobrineLegendPlugin extends JavaPlugin implements TabComple
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!command.getName().equalsIgnoreCase("herobrine")) return false;
         if (!sender.hasPermission("herobrinelegend.admin")) {
-            sender.sendMessage(ChatColor.RED + "Non hai il permesso.");
+            sender.sendMessage(ChatColor.RED + "You do not have permission.");
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("status")) {
             sender.sendMessage(ChatColor.GOLD + "HerobrineLegend: "
-                    + (encounterState.isActive() ? ChatColor.GREEN + "EVOCATO" : ChatColor.GRAY + "DISATTIVATO"));
+                    + (encounterState.isActive() ? ChatColor.GREEN + "SUMMONED" : ChatColor.GRAY + "INACTIVE"));
             return true;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
             reloadConfig();
             herobrineController.refreshConfiguration();
             horrorManager.refreshConfiguration();
-            sender.sendMessage(ChatColor.GREEN + "Configurazione ricaricata.");
+            sender.sendMessage(ChatColor.GREEN + "Configuration reloaded.");
             return true;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("jumpscare")) {
             if (!encounterState.isActive()) {
-                sender.sendMessage(ChatColor.RED + "Herobrine non è evocato: attiva prima l'altare.");
+                sender.sendMessage(ChatColor.RED + "Herobrine is not summoned. Activate the altar first.");
                 return true;
             }
             org.bukkit.entity.Player player = getServer().getPlayerExact(args[1]);
-            if (player == null) { sender.sendMessage(ChatColor.RED + "Giocatore non online."); return true; }
+            if (player == null) { sender.sendMessage(ChatColor.RED + "Player is not online."); return true; }
             sender.sendMessage(herobrineController.forceJumpscare(player)
-                    ? ChatColor.GREEN + "Apparizione forzata vicino a " + player.getName()
-                    : ChatColor.RED + "Impossibile creare l'apparizione vicino al giocatore.");
+                    ? ChatColor.GREEN + "Forced appearance near " + player.getName()
+                    : ChatColor.RED + "Unable to spawn Herobrine near the player.");
             return true;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("attack")) {
             if (!encounterState.isActive()) {
-                sender.sendMessage(ChatColor.RED + "Herobrine non è evocato: attiva prima l'altare.");
+                sender.sendMessage(ChatColor.RED + "Herobrine is not summoned. Activate the altar first.");
                 return true;
             }
             org.bukkit.entity.Player player = getServer().getPlayerExact(args[1]);
             if (player == null) {
-                sender.sendMessage(ChatColor.RED + "Giocatore non online.");
+                sender.sendMessage(ChatColor.RED + "Player is not online.");
                 return true;
             }
             if (herobrineController.forceAttack(player)) {
-                sender.sendMessage(ChatColor.GREEN + "Attacco forzato di Herobrine contro " + player.getName() + " avviato (5 secondi).");
+                sender.sendMessage(ChatColor.GREEN + "Forced Herobrine attack on " + player.getName() + " started (5 seconds).");
             } else {
-                sender.sendMessage(ChatColor.RED + "Impossibile generare Herobrine vicino a " + player.getName() + ". Controlla lo spazio disponibile e la skin.");
+                sender.sendMessage(ChatColor.RED + "Unable to spawn Herobrine near " + player.getName() + ". Check available space and the skin.");
             }
             return true;
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("fear")) {
             org.bukkit.entity.Player player = getServer().getPlayerExact(args[1]);
-            if (player == null) { sender.sendMessage(ChatColor.RED + "Giocatore non online."); return true; }
-            sender.sendMessage(ChatColor.GOLD + player.getName() + ": paura " + horrorManager.getFear(player) + "/100");
+            if (player == null) { sender.sendMessage(ChatColor.RED + "Player is not online."); return true; }
+            sender.sendMessage(ChatColor.GOLD + player.getName() + ": Fear " + horrorManager.getFear(player) + "/100");
             return true;
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("setfear")) {
             org.bukkit.entity.Player player = getServer().getPlayerExact(args[1]);
-            if (player == null) { sender.sendMessage(ChatColor.RED + "Giocatore non online."); return true; }
+            if (player == null) { sender.sendMessage(ChatColor.RED + "Player is not online."); return true; }
             try {
                 int amount = Integer.parseInt(args[2]);
                 horrorManager.setFear(player, amount);
-                sender.sendMessage(ChatColor.GREEN + "Paura di " + player.getName() + " impostata a " + horrorManager.getFear(player));
-            } catch (NumberFormatException e) { sender.sendMessage(ChatColor.RED + "Inserisci un numero intero."); }
+                sender.sendMessage(ChatColor.GREEN + "Fear for " + player.getName() + " set to " + horrorManager.getFear(player));
+            } catch (NumberFormatException e) { sender.sendMessage(ChatColor.RED + "Enter a whole number."); }
             return true;
         }
         sender.sendMessage(ChatColor.YELLOW + "/herobrine status | jumpscare <player> | attack <player> | fear <player> | setfear <player> <amount> | reload");
