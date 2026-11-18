@@ -6,7 +6,7 @@
 
 **A multiplayer-aware Herobrine horror plugin for Minecraft servers.**
 
-[![Version](https://img.shields.io/badge/version-0.4.4--FINAL-darkred)](https://github.com/thenewgessiko/HerobrineLegend/releases)
+[![Version](https://img.shields.io/badge/version-0.4.4-darkred)](https://github.com/thenewgessiko/HerobrineLegend/releases)
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.x-green)
 ![PacketEvents](https://img.shields.io/badge/dependency-PacketEvents-orange)
 
@@ -20,7 +20,7 @@
 
 Unlike simple stalking-only experiences, HerobrineLegend uses **per-player Fear progression** and **one shared NPC** with fair target rotation across eligible players.
 
-> **Version:** `0.4.4-FINAL` · **Author:** TheNewGessiko
+> **Version:** `0.4.4` · **Author:** TheNewGessiko
 
 ## Features
 
